@@ -24,6 +24,22 @@ images: {
       protocol: "https",
       hostname: "www.kalbela.com",
     },
+     {
+        protocol: "https",
+        hostname: "cdn.jagonews24.com",
+      },
+      {
+        protocol: "https",
+        hostname: "www.dailymessenger.net",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+    },
+    {
+  protocol: "https",
+  hostname: "www.kalbela.com",
+    },
     {
       protocol: "https",
       hostname: "www.dailymessenger.net",

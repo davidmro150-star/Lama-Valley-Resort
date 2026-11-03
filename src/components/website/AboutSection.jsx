@@ -1,83 +1,103 @@
-
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight, Check } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
-export default function AboutSection() {
-  const highlights = [
-    "Surrounded by the natural beauty of Bandarban",
-    "A peaceful setting away from busy city life",
-    "A place to enjoy nature, relaxation and dining",
-  ];
+export const metadata = {
+  title: "About Us",
+  description:
+    "Discover Lama Valley Resort & Restaurant in Lama, Bandarban.",
+};
 
+export default function AboutPage() {
   return (
-    <section className="section-padding bg-background">
-      <div className="container grid items-center gap-14 lg:grid-cols-2 lg:gap-20">
+    <main>
+      {/* Page Hero */}
+      <section className="relative flex min-h-[400px] items-center bg-primary-dark">
+   
 
-        {/* Image */}
-        <div className="relative">
+        <div className="absolute inset-0 bg-black/60" />
+
+        <div className="container relative z-10 py-24 text-center">
+          <p className="section-eyebrow !text-accent-light">
+            Discover Lama Valley
+          </p>
+
+          <h1 className="mb-5 font-display text-5xl text-white sm:text-6xl">
+            About Our Resort
+          </h1>
+
+          <p className="mx-auto max-w-2xl text-base leading-8 text-white/80">
+            A peaceful destination in the beautiful hills of
+            Lama, Bandarban, Bangladesh.
+          </p>
+        </div>
+      </section>
+
+      {/* About Content */}
+      <section className="section-padding bg-background">
+        <div className="container grid items-center gap-14 lg:grid-cols-2 lg:gap-20">
+
           <div className="relative aspect-[4/5] overflow-hidden rounded-xl">
             <Image
-              src="https://images.unsplash.com/photo-1448375240586-882707db888b"
-              alt="Green forest and mountain nature in Bandarban"
+              src="https://images.unsplash.com/photo-1510798831971-661eb04b3739"
+              alt="Wooden cottage surrounded by nature"
               fill
               sizes="(max-width: 1024px) 100vw, 50vw"
               className="object-cover"
             />
           </div>
 
-          <div className="absolute -bottom-6 -right-4 hidden w-48 rounded-xl border-4 border-background bg-primary p-5 text-white sm:block">
-            <p className="font-display text-3xl">Lama</p>
-            <p className="mt-1 text-xs uppercase tracking-widest text-white/80">
-              Bandarban, Bangladesh
+          <div>
+            <p className="section-eyebrow">
+              Welcome to Lama Valley
             </p>
+
+            <h2 className="section-title !text-[35px]">
+              Experience the Beauty of the Hills
+            </h2>
+
+            <p className="mb-5 text-base leading-8 text-muted">
+              Located in Lama, Bandarban, Lama Valley Resort
+              & Restaurant is presented as a destination for
+              visitors looking to enjoy the natural surroundings
+              and peaceful atmosphere of the hills.
+            </p>
+
+            <p className="mb-8 text-base leading-8 text-muted">
+              Whether you are planning a short getaway or a
+              relaxing visit with family and friends, discover
+              the charm of the surrounding landscape.
+            </p>
+
+            <Link href="/booking" className="btn btn-primary">
+              Plan Your Visit
+              <ArrowUpRight size={17} />
+            </Link>
           </div>
+
         </div>
+      </section>
 
-        {/* Content */}
-        <div>
-          <p className="section-eyebrow">
-            Welcome to Lama Valley
-          </p>
+      {/* Closing Section */}
+      <section className="section-padding bg-surface-muted">
+        <div className="container text-center">
+          <p className="section-eyebrow">Your Next Getaway</p>
 
-          <h2 className="section-title text-left">
-            A Peaceful Escape in the Heart of the Hills
+          <h2 className="section-title !text-[35px]">
+            Discover Lama Valley
           </h2>
 
-          <p className="mb-5 text-base leading-8 text-muted">
-            Discover the natural beauty of Lama, Bandarban.
-            Surrounded by green hills and peaceful landscapes,
-            Lama Valley offers a welcoming place to relax,
-            reconnect with nature and enjoy a refreshing escape.
+          <p className="section-description mx-auto mb-8 max-w-2xl">
+            Explore our accommodation and dining options
+            and plan your visit to Lama, Bandarban.
           </p>
 
-          <p className="mb-8 text-base leading-8 text-muted">
-            Whether you are planning a quiet getaway or a
-            memorable visit with family and friends, experience
-            the charm of the hills at Lama Valley Resort & Restaurant.
-          </p>
-
-          <div className="mb-10 space-y-4">
-            {highlights.map((item) => (
-              <div key={item} className="flex items-start gap-3">
-                <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-primary">
-                  <Check size={13} />
-                </span>
-                <p className="text-sm text-foreground">{item}</p>
-              </div>
-            ))}
-          </div>
-
-          <Link
-            href="/about"
-            className="btn btn-primary"
-          >
-            Discover Our Story
+          <Link href="/booking" className="btn btn-primary">
+            Book Your Stay
             <ArrowUpRight size={17} />
           </Link>
         </div>
-
-      </div>
-    </section>
+      </section>
+    </main>
   );
 }
