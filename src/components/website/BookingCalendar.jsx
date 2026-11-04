@@ -16,11 +16,17 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function getDateKey(value) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+
+  return formatDate(new Date(value));
+}
+
 function getMonthDays(year, month) {
   const firstDay = new Date(year, month, 1);
   const totalDays = new Date(year, month + 1, 0).getDate();
-
-  // Monday-first calendar
   const startDay = (firstDay.getDay() + 6) % 7;
 
   return [
@@ -36,12 +42,33 @@ function isSameDay(date, selectedDate) {
   return date && selectedDate && formatDate(date) === selectedDate;
 }
 
+function isDateUnavailable(dateString, unavailableDates) {
+  return unavailableDates.some((booking) => {
+    const start = getDateKey(booking.checkIn);
+    const end = getDateKey(booking.checkOut);
+
+    // Check-in is included; check-out is excluded.
+    return dateString >= start && dateString < end;
+  });
+}
+
+function isStayAvailable(startDate, endDate, unavailableDates) {
+  return !unavailableDates.some((booking) => {
+    const bookedStart = getDateKey(booking.checkIn);
+    const bookedEnd = getDateKey(booking.checkOut);
+
+    // Check whether the two booking periods overlap.
+    return startDate < bookedEnd && endDate > bookedStart;
+  });
+}
+
 export default function BookingCalendar({
   checkIn,
   checkOut,
   onDateChange,
   monthCount = 2,
   compact = false,
+  unavailableDates = [],
 }) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
@@ -64,10 +91,19 @@ export default function BookingCalendar({
     const selectedDate = formatDate(date);
 
     if (!checkIn || checkOut || selectedDate <= checkIn) {
+      if (isDateUnavailable(selectedDate, unavailableDates)) {
+        return;
+      }
+
       onDateChange(selectedDate, "");
-    } else {
-      onDateChange(checkIn, selectedDate);
+      return;
     }
+
+    if (!isStayAvailable(checkIn, selectedDate, unavailableDates)) {
+      return;
+    }
+
+    onDateChange(checkIn, selectedDate);
   };
 
   const months = Array.from({ length: monthCount }, (_, index) => {
@@ -81,7 +117,13 @@ export default function BookingCalendar({
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   return (
-    <div className={compact ? "space-y-4" : "rounded-2xl border border-border bg-surface p-5 sm:p-8"}>
+    <div
+      className={
+        compact
+          ? "space-y-4"
+          : "rounded-2xl border border-border bg-surface p-5 sm:p-8"
+      }
+    >
       {/* Calendar Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>
@@ -163,9 +205,7 @@ export default function BookingCalendar({
 
                 {days.map((date, index) => {
                   if (!date) {
-                    return (
-                      <div key={`empty-${index}`} />
-                    );
+                    return <div key={`empty-${index}`} />;
                   }
 
                   const dateString = formatDate(date);
@@ -173,7 +213,6 @@ export default function BookingCalendar({
 
                   const isCheckIn = isSameDay(date, checkIn);
                   const isCheckOut = isSameDay(date, checkOut);
-
                   const isSelected = isCheckIn || isCheckOut;
 
                   const isBetween =
@@ -182,19 +221,52 @@ export default function BookingCalendar({
                     dateString > checkIn &&
                     dateString < checkOut;
 
+                  const isUnavailable = isDateUnavailable(
+                    dateString,
+                    unavailableDates
+                  );
+
+                  const selectingCheckout =
+                    checkIn && !checkOut && dateString > checkIn;
+
+                  const invalidStay =
+                    selectingCheckout &&
+                    !isStayAvailable(
+                      checkIn,
+                      dateString,
+                      unavailableDates
+                    );
+
+                  const isDisabled =
+                    isPast ||
+                    (isUnavailable && !selectingCheckout) ||
+                    (selectingCheckout && invalidStay);
+
                   return (
                     <button
                       key={dateString}
                       type="button"
-                      disabled={isPast}
+                      disabled={isDisabled}
                       onClick={() => selectDate(date)}
-                      aria-label={date.toDateString()}
+                      aria-label={`${date.toDateString()}${isUnavailable ? ", unavailable" : ""
+                        }`}
                       aria-pressed={isSelected}
                       className={`
                         aspect-square rounded-lg text-xs font-medium transition
-                        ${isPast ? "cursor-not-allowed text-muted/40" : "hover:bg-surface-muted"}
-                        ${isSelected ? "bg-primary text-white hover:bg-primary-dark" : ""}
-                        ${isBetween ? "bg-surface-muted text-primary-dark" : ""}
+                        ${isDisabled
+                          ? isUnavailable
+                            ? "cursor-not-allowed bg-red-100 text-red-600"
+                            : "cursor-not-allowed text-muted/40"
+                          : "hover:bg-surface-muted"
+                        }
+                        ${isSelected
+                          ? "!bg-primary !text-white hover:!bg-primary-dark"
+                          : ""
+                        }
+                        ${isBetween
+                          ? "!bg-surface-muted !text-primary-dark"
+                          : ""
+                        }
                       `}
                     >
                       {date.getDate()}
@@ -220,8 +292,13 @@ export default function BookingCalendar({
         </span>
 
         <span className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded-sm bg-red-100" />
+          Booked
+        </span>
+
+        <span className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-sm border border-border" />
-          Available to select
+          Available
         </span>
       </div>
     </div>

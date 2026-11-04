@@ -1,7 +1,9 @@
+
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import Booking from "@/models/Booking";
+
 import Cottage from "@/models/Cottage";
+import Booking from "@/models/booking";
 
 export async function GET(request) {
   try {
@@ -39,7 +41,7 @@ export async function GET(request) {
       success: true,
       cottage: cottage.name,
       unavailableDates: bookings.map((booking) => ({
-        checkIn: booking.checkIn,
+        checkIn: Booking.checkIn,
         checkOut: booking.checkOut,
       })),
     });

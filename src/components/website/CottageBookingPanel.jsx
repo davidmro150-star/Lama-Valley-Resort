@@ -1,11 +1,10 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Users, Minus, Plus, ArrowUpRight } from "lucide-react";
 import BookingCalendar from "./BookingCalendar";
-
 
 export default function CottageBookingPanel({
   cottage,
@@ -14,6 +13,7 @@ export default function CottageBookingPanel({
   onDateChange,
   guests,
   onGuestsChange,
+  unavailableDates = [],
 }) {
   const router = useRouter();
 
@@ -88,6 +88,7 @@ export default function CottageBookingPanel({
           onDateChange={onDateChange}
           monthCount={1}
           compact
+          unavailableDates={unavailableDates}
         />
       </div>
 
