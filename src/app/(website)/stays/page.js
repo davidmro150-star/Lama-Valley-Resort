@@ -1,4 +1,3 @@
-
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -7,6 +6,7 @@ import {
   Maximize,
   BedDouble,
   Bath,
+  Clock,
 } from "lucide-react";
 
 import { cottages } from "@/data/cottages";
@@ -123,6 +123,38 @@ export default function StaysPage() {
                     <div className="flex items-center gap-2 text-sm text-muted">
                       <Bath size={17} className="text-primary" />
                       {cottage.bathrooms} Bathroom
+                    </div>
+                  </div>
+
+                  {/* Stay Schedule */}
+                  <div className="my-5 rounded-lg border border-[#e8d6b8] bg-[#fff8eb] p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Clock size={17} className="text-[#9a692c]" />
+                      <h4 className="text-sm font-semibold text-[#76501f]">
+                        Stay Schedule
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-md bg-[#f5e6c9] p-3">
+                        <p className="mb-1 text-xs font-medium text-[#76501f]">
+                          Check-in
+                        </p>
+
+                        <p className="text-base font-bold text-[#76501f]">
+                          01:00 PM
+                        </p>
+                      </div>
+
+                      <div className="rounded-md bg-[#e8f0eb] p-3">
+                        <p className="mb-1 text-xs font-medium text-[#234b3b]">
+                          Check-out
+                        </p>
+
+                        <p className="text-base font-bold text-[#234b3b]">
+                          11:00 AM
+                        </p>
+                      </div>
                     </div>
                   </div>
 

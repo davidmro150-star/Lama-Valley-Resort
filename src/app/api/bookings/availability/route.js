@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 
@@ -31,10 +30,18 @@ export async function GET(request) {
       );
     }
 
+    const now = new Date();
+
     const bookings = await Booking.find({
       cottage: cottage._id,
-      status: "confirmed",
-      checkOut: { $gt: new Date() },
+      $or: [
+        { status: "confirmed" },
+        {
+          status: "pending",
+          expiresAt: { $gt: now },
+        },
+      ],
+      checkOut: { $gt: now },
     }).select("checkIn checkOut -_id");
 
     return NextResponse.json({

@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Clock,
 } from "lucide-react";
 
 function formatDate(date) {
@@ -47,7 +48,6 @@ function isDateUnavailable(dateString, unavailableDates) {
     const start = getDateKey(booking.checkIn);
     const end = getDateKey(booking.checkOut);
 
-    // Check-in is included; check-out is excluded.
     return dateString >= start && dateString < end;
   });
 }
@@ -57,7 +57,6 @@ function isStayAvailable(startDate, endDate, unavailableDates) {
     const bookedStart = getDateKey(booking.checkIn);
     const bookedEnd = getDateKey(booking.checkOut);
 
-    // Check whether the two booking periods overlap.
     return startDate < bookedEnd && endDate > bookedStart;
   });
 }
@@ -164,16 +163,29 @@ export default function BookingCalendar({
       <div className="mb-5 grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-surface-muted p-3">
           <p className="mb-1 text-xs text-muted">Check-in</p>
+
           <p className="text-sm font-semibold text-primary-dark">
             {checkIn || "Select date"}
           </p>
+
+          <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-primary">
+            
+            <Clock size={13} />
+            <span>From 1:00 PM</span>
+          </div>
         </div>
 
         <div className="rounded-lg bg-surface-muted p-3">
           <p className="mb-1 text-xs text-muted">Check-out</p>
+
           <p className="text-sm font-semibold text-primary-dark">
             {checkOut || "Select date"}
           </p>
+
+          <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-primary">
+            <Clock size={13} />
+            <span>Until 11:00 AM</span>
+          </div>
         </div>
       </div>
 

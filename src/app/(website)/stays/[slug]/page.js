@@ -290,38 +290,38 @@ export default async function CottageDetailsPage({ params }) {
                 </div>
               )}
 
-              {/* Check-in / Check-out */}
-              <div className="mb-12 rounded-xl border border-border bg-surface p-6 sm:p-8">
-                <div className="mb-6 flex items-center gap-3">
-                  <Clock size={22} className="text-primary" />
+           {/* Check-in / Check-out */}
+<div className="mb-12 rounded-xl border border-[#e8d6b8] bg-[#fff8eb] p-6 sm:p-8">
+  <div className="mb-6 flex items-center gap-3">
+    <Clock size={22} className="text-[#9a692c]" />
 
-                  <h2 className="font-display text-2xl text-primary-dark">
-                    Check-in & Check-out
-                  </h2>
-                </div>
+    <h2 className="font-display text-2xl text-primary-dark">
+      Check-in & Check-out
+    </h2>
+  </div>
 
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <div>
-                    <p className="mb-1 text-xs uppercase tracking-wider text-muted">
-                      Check-in
-                    </p>
+  <div className="grid gap-4 sm:grid-cols-2">
+    <div className="rounded-lg bg-[#f5e6c9] p-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#76501f]">
+        Check-in
+      </p>
 
-                    <p className="text-lg font-semibold text-primary-dark">
-                      {cottage.schedule?.checkInTime || "To be confirmed"}
-                    </p>
-                  </div>
+      <p className="text-xl font-bold text-[#76501f]">
+        01:00 PM
+      </p>
+    </div>
 
-                  <div>
-                    <p className="mb-1 text-xs uppercase tracking-wider text-muted">
-                      Check-out
-                    </p>
+    <div className="rounded-lg bg-[#e8f0eb] p-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#234b3b]">
+        Check-out
+      </p>
 
-                    <p className="text-lg font-semibold text-primary-dark">
-                      {cottage.schedule?.checkOutTime || "To be confirmed"}
-                    </p>
-                  </div>
-                </div>
-              </div>
+      <p className="text-xl font-bold text-[#234b3b]">
+        11:00 AM
+      </p>
+    </div>
+  </div>
+</div>
 
               {/* Policies */}
               {policies.length > 0 && (

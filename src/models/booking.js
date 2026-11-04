@@ -51,7 +51,13 @@ const bookingSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "confirmed", "cancelled", "rejected"],
+      enum: [
+        "pending",
+        "confirmed",
+        "cancelled",
+        "rejected",
+        "expired",
+      ],
       default: "pending",
     },
 
@@ -60,9 +66,23 @@ const bookingSchema = new mongoose.Schema(
       enum: ["unpaid", "paid", "refunded"],
       default: "unpaid",
     },
+
+    // Pending booking expiry time
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
+// Improve booking availability queries
+bookingSchema.index({
+  cottage: 1,
+  status: 1,
+  checkIn: 1,
+  checkOut: 1,
+});
 
 const Booking =
   mongoose.models.Booking ||
