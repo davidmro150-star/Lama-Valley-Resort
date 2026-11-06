@@ -4,8 +4,9 @@ import mongoose from "mongoose";
 
 import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
-import Booking from "@/models/booking";
 
+import sendBookingConfirmation from "@/lib/sendBookingConfirmation";
+import Booking from "@/models/booking";
 
 export async function PATCH(request, { params }) {
   try {
@@ -14,7 +15,10 @@ export async function PATCH(request, { params }) {
 
     if (!session?.user || session.user.role !== "admin") {
       return NextResponse.json(
-        { success: false, message: "Unauthorized access." },
+        {
+          success: false,
+          message: "Unauthorized access.",
+        },
         { status: 401 }
       );
     }
@@ -24,7 +28,10 @@ export async function PATCH(request, { params }) {
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
-        { success: false, message: "Invalid booking ID." },
+        {
+          success: false,
+          message: "Invalid booking ID.",
+        },
         { status: 400 }
       );
     }
@@ -35,7 +42,10 @@ export async function PATCH(request, { params }) {
 
     if (!["confirmed", "rejected", "cancelled"].includes(status)) {
       return NextResponse.json(
-        { success: false, message: "Invalid booking status." },
+        {
+          success: false,
+          message: "Invalid booking status.",
+        },
         { status: 400 }
       );
     }
@@ -47,24 +57,28 @@ export async function PATCH(request, { params }) {
 
     if (!booking) {
       return NextResponse.json(
-        { success: false, message: "Booking not found." },
+        {
+          success: false,
+          message: "Booking not found.",
+        },
         { status: 404 }
       );
     }
 
-    // 5. Allow only valid status transitions
+    // 5. Validate status transitions
     if (booking.status === "pending") {
       if (!["confirmed", "rejected"].includes(status)) {
         return NextResponse.json(
           {
             success: false,
-            message: "Pending bookings can only be confirmed or rejected.",
+            message:
+              "Pending bookings can only be confirmed or rejected.",
           },
           { status: 400 }
         );
       }
 
-      // Do not confirm an expired reservation
+      // Check booking expiry
       if (
         status === "confirmed" &&
         booking.expiresAt &&
@@ -76,7 +90,8 @@ export async function PATCH(request, { params }) {
         return NextResponse.json(
           {
             success: false,
-            message: "This booking has expired and cannot be confirmed.",
+            message:
+              "This booking has expired and cannot be confirmed.",
           },
           { status: 409 }
         );
@@ -101,10 +116,47 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 6. Update booking
+    // 6. Update booking status
     booking.status = status;
     await booking.save();
 
+    // 7. Send email only when booking is confirmed
+    if (status === "confirmed") {
+      let emailSent = false;
+
+      try {
+        await booking.populate("cottage", "name");
+
+        const emailResult = await sendBookingConfirmation(booking);
+
+        emailSent = Boolean(emailResult?.messageId);
+
+        if (emailSent) {
+          console.log(
+            `Booking confirmation email sent: ${booking._id}`
+          );
+        }
+      } catch (emailError) {
+        console.error(
+          "Booking confirmation email error:",
+          emailError
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: emailSent
+          ? "Booking confirmed and confirmation email sent successfully."
+          : "Booking confirmed, but the confirmation email could not be sent.",
+        emailSent,
+        booking: {
+          id: booking._id.toString(),
+          status: booking.status,
+        },
+      });
+    }
+
+    // 8. Return response for rejection or cancellation
     return NextResponse.json({
       success: true,
       message: `Booking ${status} successfully.`,

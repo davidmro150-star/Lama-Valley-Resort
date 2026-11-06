@@ -14,6 +14,7 @@ const navigation = [
   { name: "Packages", href: "/packages" },
   { name: "Gallery", href: "/gallery" },
   { name: "Contact", href: "/contact" },
+  { name: "Booking Status", href: "/booking-status" },
 ];
 
 export default function Navbar() {
@@ -27,7 +28,7 @@ export default function Navbar() {
         {/* Desktop Navigation */}
         <nav
           aria-label="Main navigation"
-          className="hidden items-center gap-7 lg:flex"
+          className="hidden items-center gap-6 lg:flex"
         >
           {navigation.map((item) => (
             <Link
@@ -53,7 +54,9 @@ export default function Navbar() {
         <button
           type="button"
           onClick={() => setMenuOpen((previous) => !previous)}
-          aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-label={
+            menuOpen ? "Close navigation menu" : "Open navigation menu"
+          }
           aria-expanded={menuOpen}
           aria-controls="mobile-navigation"
           className="flex h-11 w-11 items-center justify-center rounded-md border border-border text-primary lg:hidden"

@@ -1,7 +1,18 @@
+
 import mongoose from "mongoose";
+import { randomBytes } from "crypto";
 
 const bookingSchema = new mongoose.Schema(
   {
+    // Unique reference guests can use to check their bookings
+    bookingReference: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      uppercase: true,
+    },
+
     cottage: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Cottage",
@@ -56,7 +67,6 @@ const bookingSchema = new mongoose.Schema(
         "confirmed",
         "cancelled",
         "rejected",
-        "expired",
       ],
       default: "pending",
     },
@@ -66,15 +76,22 @@ const bookingSchema = new mongoose.Schema(
       enum: ["unpaid", "paid", "refunded"],
       default: "unpaid",
     },
-
-    // Pending booking expiry time
-    expiresAt: {
-      type: Date,
-      default: null,
-    },
   },
   { timestamps: true }
 );
+
+// Generate a booking reference automatically
+bookingSchema.pre("validate", function () {
+  if (!this.bookingReference) {
+    const year = new Date().getFullYear();
+
+    const uniqueCode = randomBytes(4)
+      .toString("hex")
+      .toUpperCase();
+
+    this.bookingReference = `LV-${year}-${uniqueCode}`;
+  }
+});
 
 // Improve booking availability queries
 bookingSchema.index({

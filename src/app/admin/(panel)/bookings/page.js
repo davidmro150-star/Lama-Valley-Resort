@@ -1,21 +1,11 @@
 
 import connectDB from "@/lib/mongodb";
+
+import BookingActions from "@/components/admin/BookingActions";
 import Booking from "@/models/booking";
+import Cottage from "@/models/Cottage";
 
-
-const statusStyles = {
-  pending: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  confirmed: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  cancelled: "bg-gray-100 text-gray-700 ring-gray-500/20",
-  rejected: "bg-red-50 text-red-700 ring-red-600/20",
-  expired: "bg-orange-50 text-orange-700 ring-orange-600/20",
-};
-
-const paymentStyles = {
-  unpaid: "bg-amber-50 text-amber-700",
-  paid: "bg-emerald-50 text-emerald-700",
-  refunded: "bg-purple-50 text-purple-700",
-};
+export const dynamic = "force-dynamic";
 
 function formatDate(date) {
   if (!date) return "—";
@@ -28,33 +18,48 @@ function formatDate(date) {
   }).format(new Date(date));
 }
 
-function formatPrice(price) {
+function formatPrice(amount) {
   return new Intl.NumberFormat("en-BD", {
     style: "currency",
     currency: "BDT",
     maximumFractionDigits: 0,
-  }).format(price || 0);
+  }).format(amount || 0);
 }
 
-function StatusBadge({ status, styles }) {
-  const label = status
-    ? status.charAt(0).toUpperCase() + status.slice(1)
-    : "Unknown";
+function SummaryCard({ title, value, description }) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <h3 className="mt-3 text-2xl font-bold text-gray-900">{value}</h3>
+      <p className="mt-1 text-xs text-gray-400">{description}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const styles = {
+    pending: "bg-amber-50 text-amber-700 ring-amber-200",
+    confirmed: "bg-green-50 text-green-700 ring-green-200",
+    rejected: "bg-red-50 text-red-700 ring-red-200",
+    cancelled: "bg-gray-100 text-gray-600 ring-gray-200",
+    paid: "bg-green-50 text-green-700 ring-green-200",
+    unpaid: "bg-amber-50 text-amber-700 ring-amber-200",
+    refunded: "bg-purple-50 text-purple-700 ring-purple-200",
+  };
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
-        styles[status] || "bg-gray-100 text-gray-600 ring-gray-500/20"
+      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${
+        styles[status] || "bg-gray-100 text-gray-600 ring-gray-200"
       }`}
     >
-      {label}
+      {status || "Unknown"}
     </span>
   );
 }
 
-export default async function AdminBookingsPage() {
+export default async function BookingsPage() {
   let bookings = [];
-  let error = false;
 
   try {
     await connectDB();
@@ -63,197 +68,204 @@ export default async function AdminBookingsPage() {
       .populate("cottage", "name")
       .sort({ createdAt: -1 })
       .lean();
-  } catch (err) {
-    console.error("Admin bookings page error:", err);
-    error = true;
+  } catch (error) {
+    console.error("Admin bookings page error:", error);
+
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
+        <h2 className="font-semibold text-red-700">
+          Unable to load bookings
+        </h2>
+
+        <p className="mt-2 text-sm text-red-600">
+          Please check your database connection and try again.
+        </p>
+      </div>
+    );
   }
 
+  // Booking statistics
   const totalBookings = bookings.length;
+
   const pendingBookings = bookings.filter(
     (booking) => booking.status === "pending"
   ).length;
+
   const confirmedBookings = bookings.filter(
     (booking) => booking.status === "confirmed"
   ).length;
-  const totalRevenue = bookings
+
+  const paidRevenue = bookings
     .filter((booking) => booking.paymentStatus === "paid")
-    .reduce((total, booking) => total + (booking.totalPrice || 0), 0);
+    .reduce(
+      (total, booking) => total + (booking.totalPrice || 0),
+      0
+    );
 
   return (
     <div className="space-y-8">
-      {/* Page heading */}
+      {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-[#987447]">
-            Resort Management
-          </p>
-
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#173729] sm:text-3xl">
-            Bookings
+          <h1 className="text-2xl font-bold text-gray-900">
+            Booking Management
           </h1>
 
-          <p className="mt-2 text-sm text-gray-500">
-            Manage guest reservations and monitor booking activity.
+          <p className="mt-1 text-sm text-gray-500">
+            Manage guest reservations and booking requests.
           </p>
         </div>
 
-        <div className="rounded-xl border border-[#e8e2d7] bg-white px-4 py-3">
-          <p className="text-xs text-gray-500">Total reservations</p>
-          <p className="mt-1 text-xl font-semibold text-[#173729]">
-            {totalBookings}
-          </p>
+        <div className="rounded-xl bg-[#234b3b]/10 px-4 py-2 text-sm font-semibold text-[#234b3b]">
+          {totalBookings} Total Bookings
         </div>
       </div>
 
-      {/* Database error */}
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-          Unable to load bookings. Please check your database connection and
-          try again.
-        </div>
-      )}
-
-      {/* Summary cards */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
-          label="Total Bookings"
+          title="Total Bookings"
           value={totalBookings}
-          description="All reservations"
+          description="All reservation records"
         />
 
         <SummaryCard
-          label="Pending"
+          title="Pending Bookings"
           value={pendingBookings}
-          description="Awaiting confirmation"
+          description="Waiting for admin action"
         />
 
         <SummaryCard
-          label="Confirmed"
+          title="Confirmed Bookings"
           value={confirmedBookings}
-          description="Confirmed reservations"
+          description="Successfully confirmed"
         />
 
         <SummaryCard
-          label="Paid Revenue"
-          value={formatPrice(totalRevenue)}
-          description="From paid bookings"
+          title="Paid Revenue"
+          value={formatPrice(paidRevenue)}
+          description="Revenue from paid bookings"
         />
       </div>
 
-      {/* Bookings table */}
-      <section className="overflow-x-auto rounded-2xl border border-[#e8e2d7] bg-white">
-        <div className="flex min-w-[800px] items-center justify-between border-b border-[#eee9df] px-6 py-5">
-          <div>
-            <h2 className="font-semibold text-[#173729]">
-              Recent Reservations
-            </h2>
-            <p className="mt-1 text-xs text-gray-500">
-              Latest guest booking records
-            </p>
-          </div>
+      {/* Bookings Table */}
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-6 py-5">
+          <h2 className="text-lg font-bold text-gray-900">
+            All Reservations
+          </h2>
 
-          <span className="rounded-full bg-[#f5f2eb] px-3 py-1.5 text-xs font-medium text-[#426b55]">
-            {totalBookings} records
-          </span>
+          <p className="mt-1 text-sm text-gray-500">
+            Review guest details and manage reservation status.
+          </p>
         </div>
 
-        {bookings.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <h3 className="font-semibold text-[#173729]">
-              No bookings found
-            </h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Guest reservations will appear here when customers make bookings.
-            </p>
-          </div>
-        ) : (
-          <table className="w-full min-w-[800px] text-left">
-            <thead className="bg-[#faf9f6] text-xs uppercase tracking-wider text-gray-500">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1150px] text-left text-sm">
+            <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
               <tr>
                 <th className="px-6 py-4 font-semibold">Guest</th>
                 <th className="px-6 py-4 font-semibold">Cottage</th>
-                <th className="px-6 py-4 font-semibold">Stay</th>
+                <th className="px-6 py-4 font-semibold">Check-in / Out</th>
                 <th className="px-6 py-4 font-semibold">Guests</th>
                 <th className="px-6 py-4 font-semibold">Amount</th>
                 <th className="px-6 py-4 font-semibold">Payment</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
+                <th className="px-6 py-4 font-semibold">Actions</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-[#eee9df]">
-              {bookings.map((booking) => (
-                <tr
-                  key={booking._id.toString()}
-                  className="transition-colors hover:bg-[#faf9f6]"
-                >
-                  <td className="px-6 py-5">
-                    <p className="font-medium text-[#173729]">
-                      {booking.guestName}
+            <tbody className="divide-y divide-gray-100">
+              {bookings.length > 0 ? (
+                bookings.map((booking) => (
+                  <tr
+                    key={booking._id.toString()}
+                    className="transition hover:bg-gray-50/70"
+                  >
+                    {/* Guest */}
+                    <td className="px-6 py-5">
+                      <p className="font-semibold text-gray-900">
+                        {booking.guestName}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        {booking.guestEmail}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        {booking.guestPhone}
+                      </p>
+                    </td>
+
+                    {/* Cottage */}
+                    <td className="px-6 py-5 font-medium text-gray-700">
+                      {booking.cottage?.name || "Cottage unavailable"}
+                    </td>
+
+                    {/* Dates */}
+                    <td className="px-6 py-5">
+                      <p className="font-medium text-gray-800">
+                        {formatDate(booking.checkIn)}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        to {formatDate(booking.checkOut)}
+                      </p>
+                    </td>
+
+                    {/* Guests */}
+                    <td className="px-6 py-5 text-gray-700">
+                      {booking.guests}
+                    </td>
+
+                    {/* Amount */}
+                    <td className="px-6 py-5 font-semibold text-gray-900">
+                      {formatPrice(booking.totalPrice)}
+                    </td>
+
+                    {/* Payment */}
+                    <td className="px-6 py-5">
+                      <StatusBadge status={booking.paymentStatus} />
+                    </td>
+
+                    {/* Booking Status */}
+                    <td className="px-6 py-5">
+                      <StatusBadge status={booking.status} />
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-6 py-5">
+                      <BookingActions
+                        bookingId={booking._id.toString()}
+                        status={booking.status}
+                      />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="px-6 py-16 text-center">
+                    <p className="font-semibold text-gray-700">
+                      No bookings found
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {booking.guestEmail}
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      New reservations will appear here.
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {booking.guestPhone}
-                    </p>
-                  </td>
-
-                  <td className="px-6 py-5 text-sm font-medium text-gray-700">
-                    {booking.cottage?.name || "Cottage unavailable"}
-                  </td>
-
-                  <td className="px-6 py-5 text-sm text-gray-600">
-                    <p>{formatDate(booking.checkIn)}</p>
-                    <p className="mt-1 text-xs text-gray-400">
-                      to {formatDate(booking.checkOut)}
-                    </p>
-                  </td>
-
-                  <td className="px-6 py-5 text-sm text-gray-600">
-                    {booking.guests}
-                  </td>
-
-                  <td className="px-6 py-5 text-sm font-semibold text-[#173729]">
-                    {formatPrice(booking.totalPrice)}
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <StatusBadge
-                      status={booking.paymentStatus}
-                      styles={paymentStyles}
-                    />
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <StatusBadge
-                      status={booking.status}
-                      styles={statusStyles}
-                    />
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
-        )}
-      </section>
+        </div>
 
-      <p className="text-xs text-gray-400">
-        Booking information is retrieved directly from the resort database.
-      </p>
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, description }) {
-  return (
-    <div className="rounded-2xl border border-[#e8e2d7] bg-white p-5">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-[#173729]">
-        {value}
-      </p>
-
-      <p className="mt-2 text-xs text-gray-400">{description}</p>
+        <div className="border-t border-gray-100 px-6 py-4">
+          <p className="text-xs text-gray-400">
+            Showing {bookings.length} reservation(s).
+            Scroll horizontally to view all columns.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
