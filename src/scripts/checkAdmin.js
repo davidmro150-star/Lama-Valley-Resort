@@ -1,3 +1,4 @@
+
 import bcrypt from "bcryptjs";
 
 import connectDB from "../lib/mongodb.js";
@@ -18,6 +19,7 @@ async function checkAdmin() {
 
     if (!user) {
       console.log("Admin account: NOT FOUND");
+      process.exitCode = 1;
       return;
     }
 
@@ -26,17 +28,29 @@ async function checkAdmin() {
       user.password
     );
 
-    console.log("Admin account: FOUND");
-    console.log("Email:", user.email);
+    const isValidAdmin =
+      user.role === "admin" &&
+      user.isActive === true &&
+      passwordMatches;
+
+    console.log("Account found:", true);
     console.log("Role:", user.role);
     console.log("Active:", user.isActive);
     console.log("Password matches:", passwordMatches);
+    console.log("Valid admin account:", isValidAdmin);
+
+    if (!isValidAdmin) {
+      process.exitCode = 1;
+    }
   } catch (error) {
     console.error("Verification failed:", error.message);
     process.exitCode = 1;
   } finally {
     const mongoose = await import("mongoose");
-    await mongoose.default.connection.close();
+
+    if (mongoose.default.connection.readyState !== 0) {
+      await mongoose.default.connection.close();
+    }
   }
 }
 

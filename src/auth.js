@@ -24,17 +24,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       async authorize(credentials) {
         if (
-          !credentials?.email ||
-          !credentials?.password
+          typeof credentials?.email !== "string" ||
+          typeof credentials?.password !== "string"
         ) {
           return null;
         }
 
-        await connectDB();
+        const email = credentials.email.trim().toLowerCase();
+        const password = credentials.password;
 
-        const email = String(credentials.email)
-          .trim()
-          .toLowerCase();
+        if (!email || !password || password.length > 128) {
+          return null;
+        }
+
+        await connectDB();
 
         const user = await User.findOne({ email }).select(
           "+password"
@@ -45,7 +48,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const isPasswordValid = await bcrypt.compare(
-          String(credentials.password),
+          password,
           user.password
         );
 
@@ -77,13 +80,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = user.role;
+
+        return token;
       }
+
+      if (!token.id) {
+        return null;
+      }
+
+      await connectDB();
+
+      const currentUser = await User.findById(token.id)
+        .select("role isActive")
+        .lean();
+
+      if (
+        !currentUser ||
+        !currentUser.isActive ||
+        currentUser.role !== "admin"
+      ) {
+        return null;
+      }
+
+      token.role = currentUser.role;
 
       return token;
     },
 
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token?.id) {
         session.user.id = token.id;
         session.user.role = token.role;
       }

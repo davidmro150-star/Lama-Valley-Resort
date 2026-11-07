@@ -11,69 +11,45 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-// Six local-area background images
 const heroImages = [
-  // Mirinja Valley — Lama
   {
-    src: "https://www.kalbela.com/assets/gallery/2023/12/19/1702975987.png",
-    alt: "Hilltop camping and misty mountain views at Mirinja Valley",
+    src: "https://res.cloudinary.com/oncwdbly/image/upload/v1793992861/lama-valley-resort/n1efwjumbtuusthx5mh2.avif",
+    alt: "Beautiful hill scenery at Lama Valley Resort",
   },
   {
-    src: "https://www.dailymessenger.net/media/imgAll/2022February/en/mirinja-2310180741.jpg",
-    alt: "Green hilltop landscape at Mirinja Valley",
-  },
-  {
-    src: "https://english.khaborerkagoj.com/uploads/2025/06/17/1750156102.valley.jpg",
-    alt: "Hilltop viewpoint overlooking Mirinja Valley",
-  },
-
-  // Dim Pahar — Bandarban
-  {
-    src: "https://cdn.rtvonline.com/media/images/2023/02/10/image-211405-1676023657.jpg",
-    alt: "Winding mountain road through the green hills of Dim Pahar",
-  },
-  {
-    src: "https://www.travelmate.com.bd/wp-content/uploads/2021/03/Dim-Pahar-Bandarban.jpg",
-    alt: "Cloud-covered mountain ridge at Dim Pahar",
-  },
-  {
-    src: "https://adarbepari.com/wp-content/uploads/2017/02/dim-pahar-alikadam-bandarban.jpg",
-    alt: "Green mountain scenery at Dim Pahar, Bandarban",
+    src: "https://res.cloudinary.com/oncwdbly/image/upload/v1793992862/lama-valley-resort/gyfmrzx3ukmjobvltoik.jpg",
+    alt: "Resort accommodation and natural surroundings",
   },
 ];
 
 export default function HeroSection() {
   const [activeSlide, setActiveSlide] = useState(0);
 
-  // Automatic slider
   useEffect(() => {
-    const sliderInterval = setInterval(() => {
+    const interval = setInterval(() => {
       setActiveSlide((previous) => (previous + 1) % heroImages.length);
-    }, 2000);
+    }, 4000);
 
-    return () => clearInterval(sliderInterval);
+    return () => clearInterval(interval);
   }, []);
 
-  // Previous slide
   const previousSlide = () => {
     setActiveSlide((previous) =>
       previous === 0 ? heroImages.length - 1 : previous - 1
     );
   };
 
-  // Next slide
   const nextSlide = () => {
     setActiveSlide((previous) => (previous + 1) % heroImages.length);
   };
 
   return (
     <section className="relative isolate flex min-h-[680px] items-center bg-primary-dark">
-
       {/* Background Image Slider */}
       {heroImages.map((image, index) => (
         <div
           key={image.src}
-          className={`absolute inset-0 transition-opacity duration-100 ease-in-out ${activeSlide === index ? "opacity-100" : "opacity-0"
+          className={`absolute inset-0 transition-opacity duration-1000 ${activeSlide === index ? "opacity-100" : "opacity-0"
             }`}
         >
           <Image
@@ -131,12 +107,8 @@ export default function HeroSection() {
         </div>
       </div>
 
-   
-
       {/* Slider Controls */}
-      <div className="absolute bottom-7 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 sm:left-auto lg:right-25 sm:right-8 sm:translate-x-0">
-
-        {/* Previous Button */}
+      <div className="absolute bottom-7 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 sm:left-auto sm:right-8 sm:translate-x-0 lg:right-25">
         <button
           type="button"
           onClick={previousSlide}
@@ -146,7 +118,6 @@ export default function HeroSection() {
           <ChevronLeft size={20} />
         </button>
 
-        {/* Slide Indicators */}
         <div className="flex items-center gap-2">
           {heroImages.map((image, index) => (
             <button
@@ -163,7 +134,6 @@ export default function HeroSection() {
           ))}
         </div>
 
-        {/* Next Button */}
         <button
           type="button"
           onClick={nextSlide}

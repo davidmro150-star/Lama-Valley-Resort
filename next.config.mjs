@@ -1,10 +1,10 @@
 
-import path from "node:path";
+import path from "path";
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   turbopack: {
     root: path.resolve(process.cwd()),
+
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],
@@ -13,20 +13,20 @@ const nextConfig = {
     },
   },
 
- 
-images: {
-  remotePatterns: [
+  images: {
+    remotePatterns: [
+    
     {
-      protocol: "https",
-      hostname: "images.unsplash.com",
-    },
-    {
-      protocol: "https",
-      hostname: "www.kalbela.com",
-    },
-     {
+  protocol: "https",
+  hostname: "cdn.rtvonline.com",
+},
+      {
         protocol: "https",
-        hostname: "cdn.jagonews24.com",
+        hostname: "res.cloudinary.com",
+      },
+      {
+        protocol: "https",
+        hostname: "www.kalbela.com",
       },
       {
         protocol: "https",
@@ -34,35 +34,14 @@ images: {
       },
       {
         protocol: "https",
+        hostname: "english.khaborerkagoj.com",
+      },
+      {
+        protocol: "https",
         hostname: "images.unsplash.com",
-    },
-    {
-  protocol: "https",
-  hostname: "www.kalbela.com",
-    },
-    {
-      protocol: "https",
-      hostname: "www.dailymessenger.net",
-    },
-    {
-      protocol: "https",
-      hostname: "english.khaborerkagoj.com",
-    },
-    {
-      protocol: "https",
-      hostname: "cdn.rtvonline.com",
-    },
-    {
-      protocol: "https",
-      hostname: "www.travelmate.com.bd",
-    },
-    {
-      protocol: "https",
-      hostname: "adarbepari.com",
-    },
-  ],
-},
-
+      },
+    ],
+  },
 };
 
 export default nextConfig;

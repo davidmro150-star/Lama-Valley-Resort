@@ -1,436 +1,417 @@
 
-import CottageGallery from "@/components/website/CottageGallery";
-import CottageBookingPanel from "@/components/website/CottageBookingPanel";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import CottageBookingWrapper from "@/components/website/CottageBookingWrapper";
-import {
-  ArrowLeft,
-  ArrowUpRight,
-  Users,
-  Maximize,
-  BedDouble,
-  Bath,
-  Check,
-  Clock,
-  ShieldCheck,
-  Sparkles,
-  Home,
-} from "lucide-react";
-import { cottages } from "@/data/cottages";
+import Image from "next/image";
+import Link from "next/link";
 
+import connectDB from "@/lib/mongodb";
+import Cottage from "@/models/Cottage";
+
+import CottageGallery from "@/components/website/CottageGallery";
+import CottageBookingWrapper from "@/components/website/CottageBookingWrapper";
+
+export const dynamic = "force-dynamic";
+
+// Convert MongoDB documents into plain JSON-safe objects.
+function serializeData(data) {
+  return JSON.parse(JSON.stringify(data));
+}
+
+// Fetch one active cottage.
+async function getCottage(slug) {
+  await connectDB();
+
+  const cottageData = await Cottage.findOne({
+    slug,
+    isActive: true,
+  }).lean();
+
+  if (!cottageData) {
+    return null;
+  }
+
+  return serializeData(cottageData);
+}
+
+// Fetch related cottages.
+async function getRelatedCottages(currentSlug) {
+  await connectDB();
+
+  const relatedData = await Cottage.find({
+    isActive: true,
+    slug: { $ne: currentSlug },
+  })
+    .sort({ createdAt: -1 })
+    .limit(3)
+    .lean();
+
+  return serializeData(relatedData);
+}
+
+// Dynamic page metadata.
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  const cottage = cottages.find((item) => item.slug === slug);
+  const cottage = await getCottage(slug);
 
   if (!cottage) {
-    return { title: "Cottage Not Found" };
+    return {
+      title: "Cottage Not Found | Lama Valley Resort",
+    };
   }
 
   return {
     title: `${cottage.name} | Lama Valley Resort`,
-    description: cottage.description,
+    description: cottage.description || "Discover our beautiful cottage at Lama Valley Resort.",
   };
 }
 
 export default async function CottageDetailsPage({ params }) {
   const { slug } = await params;
-  const cottage = cottages.find((item) => item.slug === slug);
 
-  if (!cottage) notFound();
+  const cottage = await getCottage(slug);
 
-  const relatedCottages = cottages
-    .filter((item) => item.slug !== cottage.slug)
-    .slice(0, 3);
+  if (!cottage) {
+    notFound();
+  }
 
-  const specifications = [
-    {
-      icon: Users,
-      value: cottage.occupancy?.maxGuests || cottage.capacity,
-      label: "Maximum Guests",
-    },
-    {
-      icon: Maximize,
-      value: `${cottage.size} sq. ft.`,
-      label: "Cottage Size",
-    },
-    {
-      icon: BedDouble,
-      value: cottage.bedrooms,
-      label: "Bedrooms",
-    },
-    {
-      icon: Bath,
-      value: cottage.bathrooms,
-      label: "Bathrooms",
-    },
-  ];
+  const relatedCottages = await getRelatedCottages(slug);
 
-  const facilities = cottage.facilities || [];
-  const highlights = cottage.highlights || [];
-  const includedServices = cottage.includedServices || [];
+  const images = Array.isArray(cottage.images)
+    ? cottage.images.filter((image) => typeof image === "string" && image.trim())
+    : [];
 
-  const policies = [
-    {
-      label: "Child Policy",
-      value: cottage.policies?.childPolicy,
-    },
-    {
-      label: "Booking Policy",
-      value: cottage.policies?.bookingPolicy,
-    },
-    {
-      label: "Cancellation Policy",
-      value: cottage.policies?.cancellationPolicy,
-    },
-  ].filter((policy) => policy.value);
+  const facilities = Array.isArray(cottage.facilities)
+    ? cottage.facilities
+    : [];
+
+  const highlights = Array.isArray(cottage.highlights)
+    ? cottage.highlights
+    : [];
+
+  const includedServices = Array.isArray(cottage.includedServices)
+    ? cottage.includedServices
+    : [];
+
+  const policies = Array.isArray(cottage.policies)
+    ? cottage.policies
+    : [];
+
+  const price = Number(cottage.price) || 0;
+  const capacity = Number(cottage.capacity) || 1;
 
   return (
-    <main className="bg-background">
-      {/* Breadcrumb and Hero */}
-      <section className="relative overflow-hidden bg-primary-dark text-white">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary-dark via-primary-dark/95 to-primary/70" />
+    <main className="min-h-screen bg-[#f7f5ef]">
+      {/* Hero Section */}
+      <section className="relative flex min-h-[320px] items-center justify-center overflow-hidden bg-[#173729] px-5 py-20 text-center sm:min-h-[400px]">
+        {images[0] && (
+          <Image
+            src={images[0]}
+            alt={cottage.name}
+            fill
+            priority
+            unoptimized
+            className="object-cover opacity-35"
+            sizes="100vw"
+          />
+        )}
 
-        <div className="container relative z-10 py-16 sm:py-20 lg:py-24">
-          <Link
-            href="/stays"
-            className="mb-10 inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-accent-light"
-          >
-            <ArrowLeft size={16} />
-            All Cottages
+        <div className="absolute inset-0 bg-[#10251c]/60" />
+
+        <div className="relative z-10 mx-auto max-w-4xl">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[4px] text-[#c49a62] sm:text-sm">
+            Lama Valley Resort & Restaurant
+          </p>
+
+          <h1 className="font-serif text-4xl font-medium text-white sm:text-5xl md:text-6xl">
+            {cottage.name}
+          </h1>
+
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white/80 sm:text-base">
+            Experience peaceful surroundings, beautiful scenery, and a relaxing
+            stay in the hills of Lama.
+          </p>
+
+          <div className="mt-7 flex flex-wrap justify-center gap-3 text-sm text-white/90">
+            <span className="rounded-full border border-white/30 px-5 py-2">
+              Up to {capacity} Guests
+            </span>
+
+            <span className="rounded-full border border-white/30 px-5 py-2">
+              ৳{price.toLocaleString("en-BD")} / night
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Breadcrumb */}
+      <div className="mx-auto max-w-7xl px-5 pt-8 sm:px-8 lg:px-10">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+          <Link href="/" className="transition hover:text-[#234b3b]">
+            Home
           </Link>
 
-          <div className="max-w-3xl">
-            <div className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-accent-light">
-              <span className="h-px w-8 bg-accent-light" />
-              {cottage.accommodationType || "Cottage Accommodation"}
-            </div>
+          <span>/</span>
 
-            <h1 className="mb-5 font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">
-              {cottage.name}
-            </h1>
+          <Link href="/stays" className="transition hover:text-[#234b3b]">
+            Stays
+          </Link>
 
-            <p className="max-w-2xl text-base leading-8 text-white/75 sm:text-lg">
-              {cottage.description}
-            </p>
+          <span>/</span>
 
-            <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-white/75">
-              <span className="inline-flex items-center gap-2">
-                <Users size={17} className="text-accent-light" />
-                Up to {cottage.occupancy?.maxGuests || cottage.capacity} guests
-              </span>
-
-              <span className="h-1 w-1 rounded-full bg-accent-light" />
-
-              <span className="inline-flex items-center gap-2">
-                <BedDouble size={17} className="text-accent-light" />
-                {cottage.bedrooms} bedroom
-                {cottage.bedrooms > 1 ? "s" : ""}
-              </span>
-
-              <span className="h-1 w-1 rounded-full bg-accent-light" />
-
-              <span className="inline-flex items-center gap-2">
-                <Bath size={17} className="text-accent-light" />
-                {cottage.bathrooms} bathroom
-                {cottage.bathrooms > 1 ? "s" : ""}
-              </span>
-            </div>
-          </div>
+          <span className="font-medium text-[#234b3b]">
+            {cottage.name}
+          </span>
         </div>
-      </section>
+      </div>
 
-      {/* Photo Gallery */}
-      <section className="container py-10 sm:py-14">
-        <CottageGallery
-          images={cottage.images || []}
-          cottageName={cottage.name}
-        />
-      </section>
-
-      {/* Main Cottage Information */}
-      <section className="section-padding pt-4">
-        <div className="container">
-          <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
-            {/* Left Content */}
-            <div className="min-w-0">
-              {/* About */}
-              <div className="mb-12">
-                <p className="section-eyebrow">Discover Your Stay</p>
-
-                <h2 className="section-title mb-5">
-                  About This Cottage
-                </h2>
-
-                <p className="max-w-3xl text-base leading-8 text-muted">
-                  {cottage.description}
-                </p>
-
-                <p className="mt-4 max-w-3xl text-base leading-8 text-muted">
-                  Enjoy a comfortable stay at Lama Valley Resort, surrounded
-                  by the natural beauty of the hills. Explore the cottage
-                  facilities and choose your preferred dates to plan your stay.
-                </p>
-              </div>
-
-              {/* Specifications */}
-              <div className="mb-12">
-                <p className="section-eyebrow">At a Glance</p>
-
-                <h2 className="mb-6 font-display text-2xl text-primary-dark sm:text-3xl">
-                  Accommodation Overview
-                </h2>
-
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-                  {specifications.map((item) => {
-                    const Icon = item.icon;
-
-                    return (
-                      <div
-                        key={item.label}
-                        className="rounded-xl border border-border bg-surface p-4 sm:p-5"
-                      >
-                        <Icon
-                          size={23}
-                          className="mb-4 text-primary"
-                          strokeWidth={1.7}
-                        />
-
-                        <p className="text-xl font-semibold text-primary-dark">
-                          {item.value}
-                        </p>
-
-                        <p className="mt-1 text-xs leading-5 text-muted">
-                          {item.label}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Highlights */}
-              {highlights.length > 0 && (
-                <div className="mb-12">
-                  <p className="section-eyebrow">Cottage Experience</p>
-
-                  <h2 className="mb-6 font-display text-2xl text-primary-dark sm:text-3xl">
-                    Cottage Highlights
-                  </h2>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {highlights.map((highlight) => (
-                      <div
-                        key={highlight}
-                        className="flex items-start gap-3 rounded-xl bg-surface-muted p-4"
-                      >
-                        <Sparkles
-                          size={19}
-                          className="mt-0.5 shrink-0 text-accent"
-                        />
-                        <p className="text-sm leading-6 text-foreground">
-                          {highlight}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Facilities */}
-              <div className="mb-12">
-                <p className="section-eyebrow">Your Comfort Matters</p>
-
-                <h2 className="mb-6 font-display text-2xl text-primary-dark sm:text-3xl">
-                  Cottage Facilities
-                </h2>
-
-                {facilities.length > 0 ? (
-                  <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-                    {facilities.map((facility) => (
-                      <div
-                        key={facility}
-                        className="flex items-center gap-3 text-sm text-muted"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-primary">
-                          <Check size={16} />
-                        </span>
-
-                        {facility}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted">
-                    Facility information will be updated soon.
-                  </p>
-                )}
-              </div>
-
-              {/* Included Services */}
-              {includedServices.length > 0 && (
-                <div className="mb-12">
-                  <p className="section-eyebrow">Included With Your Stay</p>
-
-                  <h2 className="mb-6 font-display text-2xl text-primary-dark sm:text-3xl">
-                    Included Services
-                  </h2>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {includedServices.map((service) => (
-                      <div
-                        key={service}
-                        className="flex items-center gap-3 text-sm text-muted"
-                      >
-                        <Check size={17} className="shrink-0 text-primary" />
-                        {service}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-           {/* Check-in / Check-out */}
-<div className="mb-12 rounded-xl border border-[#e8d6b8] bg-[#fff8eb] p-6 sm:p-8">
-  <div className="mb-6 flex items-center gap-3">
-    <Clock size={22} className="text-[#9a692c]" />
-
-    <h2 className="font-display text-2xl text-primary-dark">
-      Check-in & Check-out
-    </h2>
-  </div>
-
-  <div className="grid gap-4 sm:grid-cols-2">
-    <div className="rounded-lg bg-[#f5e6c9] p-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#76501f]">
-        Check-in
-      </p>
-
-      <p className="text-xl font-bold text-[#76501f]">
-        01:00 PM
-      </p>
-    </div>
-
-    <div className="rounded-lg bg-[#e8f0eb] p-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#234b3b]">
-        Check-out
-      </p>
-
-      <p className="text-xl font-bold text-[#234b3b]">
-        11:00 AM
-      </p>
-    </div>
-  </div>
-</div>
-
-              {/* Policies */}
-              {policies.length > 0 && (
-                <div className="mb-12">
-                  <div className="mb-6 flex items-center gap-3">
-                    <ShieldCheck size={22} className="text-primary" />
-
-                    <h2 className="font-display text-2xl text-primary-dark">
-                      Booking Policies
-                    </h2>
-                  </div>
-
-                  <div className="space-y-5">
-                    {policies.map((policy) => (
-                      <div key={policy.label}>
-                        <h3 className="mb-2 text-sm font-semibold text-primary-dark">
-                          {policy.label}
-                        </h3>
-
-                        <p className="text-sm leading-7 text-muted">
-                          {policy.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+      {/* Main Cottage Content */}
+      <section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10 lg:py-14">
+        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-3 lg:gap-12">
+          {/* Left Content */}
+          <div className="space-y-10 lg:col-span-2">
+            {/* Gallery */}
+            <div>
+              {images.length > 0 ? (
+                <CottageGallery images={images} />
+              ) : (
+                <div className="flex min-h-[300px] items-center justify-center rounded-2xl bg-[#e9e6dc] text-gray-500">
+                  No images available for this cottage.
                 </div>
               )}
             </div>
 
-            {/* Booking Panel */}
+            {/* Cottage Description */}
             <div>
-              <CottageBookingWrapper cottage={cottage} />
-            </div>
-          </div>
-        </div>
-      </section>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[3px] text-[#c49a62]">
+                Welcome to your stay
+              </p>
 
-      {/* Other Cottages */}
-      <section className="section-padding bg-surface-muted">
-        <div className="container">
-          <div className="mb-9 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="section-eyebrow">Explore More</p>
-
-              <h2 className="section-title">
-                Other Cottages to Discover
+              <h2 className="mb-5 font-serif text-3xl text-[#234b3b] sm:text-4xl">
+                About This Cottage
               </h2>
 
-              <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
-                Explore more accommodation options at Lama Valley Resort.
+              <p className="text-base leading-8 text-gray-600">
+                {cottage.description ||
+                  "Enjoy a peaceful and comfortable stay surrounded by the natural beauty of Lama Valley."}
               </p>
             </div>
 
-            <Link
-              href="/stays"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition hover:text-accent"
-            >
-              View All Cottages
-              <ArrowUpRight size={17} />
-            </Link>
+            {/* Cottage Overview */}
+            <div className="border-y border-[#e3dfd4] py-8">
+              <h2 className="mb-6 font-serif text-2xl text-[#234b3b]">
+                Cottage Overview
+              </h2>
+
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-3">
+                <div>
+                  <p className="text-sm text-gray-500">Guest Capacity</p>
+                  <p className="mt-2 font-semibold text-[#234b3b]">
+                    {capacity} Guests
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Price Per Night</p>
+                  <p className="mt-2 font-semibold text-[#234b3b]">
+                    ৳{price.toLocaleString("en-BD")}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Accommodation</p>
+                  <p className="mt-2 font-semibold text-[#234b3b]">
+                    {cottage.accommodationType || "Private Cottage"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Bedrooms</p>
+                  <p className="mt-2 font-semibold text-[#234b3b]">
+                    {cottage.bedrooms ?? "Not specified"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Bathrooms</p>
+                  <p className="mt-2 font-semibold text-[#234b3b]">
+                    {cottage.bathrooms ?? "Not specified"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Size</p>
+                  <p className="mt-2 font-semibold text-[#234b3b]">
+                    {cottage.size || "Not specified"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Facilities */}
+            {facilities.length > 0 && (
+              <div>
+                <h2 className="mb-6 font-serif text-2xl text-[#234b3b]">
+                  Facilities & Amenities
+                </h2>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {facilities.map((facility, index) => (
+                    <div
+                      key={`${facility}-${index}`}
+                      className="flex items-center gap-3 rounded-xl bg-white p-4"
+                    >
+                      <span className="text-[#c49a62]">✓</span>
+                      <span className="text-sm text-gray-700">
+                        {facility}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Highlights */}
+            {highlights.length > 0 && (
+              <div>
+                <h2 className="mb-6 font-serif text-2xl text-[#234b3b]">
+                  Cottage Highlights
+                </h2>
+
+                <ul className="space-y-3">
+                  {highlights.map((highlight, index) => (
+                    <li
+                      key={`${highlight}-${index}`}
+                      className="flex gap-3 text-gray-600"
+                    >
+                      <span className="text-[#c49a62]">✦</span>
+                      {highlight}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Included Services */}
+            {includedServices.length > 0 && (
+              <div>
+                <h2 className="mb-6 font-serif text-2xl text-[#234b3b]">
+                  Included Services
+                </h2>
+
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {includedServices.map((service, index) => (
+                    <li
+                      key={`${service}-${index}`}
+                      className="rounded-xl bg-white p-4 text-sm text-gray-600"
+                    >
+                      ✓ {service}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Policies */}
+            {policies.length > 0 && (
+              <div>
+                <h2 className="mb-6 font-serif text-2xl text-[#234b3b]">
+                  Cottage Policies
+                </h2>
+
+                <ul className="space-y-3">
+                  {policies.map((policy, index) => (
+                    <li
+                      key={`${policy}-${index}`}
+                      className="text-sm leading-7 text-gray-600"
+                    >
+                      • {policy}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {relatedCottages.map((item) => (
-              <Link
-                key={item.id}
-                href={`/stays/${item.slug}`}
-                className="group overflow-hidden rounded-xl border border-border bg-surface transition duration-300 hover:-translate-y-1 hover:shadow-soft"
-              >
-                <div className="relative aspect-[16/10] bg-surface-muted">
-                  {item.images?.[0] && (
-                    <div
-                      className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
-                      style={{
-                        backgroundImage: `url("${item.images[0]}")`,
-                      }}
-                    />
-                  )}
-                </div>
-
-                <div className="p-5">
-                  <h3 className="font-display text-xl text-primary-dark transition group-hover:text-primary">
-                    {item.name}
-                  </h3>
-
-                  <p className="mt-2 text-sm text-muted">
-                    Up to {item.capacity} guests
-                  </p>
-
-                  <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-                    <p className="text-sm text-muted">
-                      From{" "}
-                      <span className="font-semibold text-primary-dark">
-                        ৳{item.price.toLocaleString("en-BD")}
-                      </span>
-                      /night
-                    </p>
-
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-muted text-primary transition group-hover:bg-primary group-hover:text-white">
-                      <ArrowUpRight size={17} />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
+          {/* Right Booking Panel */}
+          <div className="lg:sticky lg:top-24">
+            <CottageBookingWrapper cottage={cottage} />
           </div>
         </div>
       </section>
+
+      {/* Related Cottages */}
+      {relatedCottages.length > 0 && (
+        <section className="border-t border-[#e3dfd4] bg-white py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+            <div className="mb-10 text-center">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[3px] text-[#c49a62]">
+                Explore More
+              </p>
+
+              <h2 className="font-serif text-3xl text-[#234b3b] sm:text-4xl">
+                You May Also Like
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+              {relatedCottages.map((related) => {
+                const relatedImage = related.images?.[0];
+
+                return (
+                  <Link
+                    key={related._id}
+                    href={`/stays/${related.slug}`}
+                    className="group overflow-hidden rounded-2xl border border-[#e9e5db] bg-[#f7f5ef] transition hover:-translate-y-1 hover:shadow-xl"
+                  >
+                    <div className="relative h-60 bg-[#e9e6dc]">
+                      {relatedImage ? (
+                        <Image
+                          src={relatedImage}
+                          alt={related.name}
+                          fill
+                          unoptimized
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          className="object-cover transition duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                          No image available
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-6">
+                      <h3 className="font-serif text-xl text-[#234b3b]">
+                        {related.name}
+                      </h3>
+
+                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-500">
+                        {related.description || "Discover a relaxing stay at Lama Valley Resort."}
+                      </p>
+
+                      <div className="mt-5 flex items-center justify-between">
+                        <span className="text-sm text-gray-500">
+                          Up to {related.capacity} guests
+                        </span>
+
+                        <span className="font-semibold text-[#234b3b]">
+                          ৳{Number(related.price || 0).toLocaleString("en-BD")}
+                          <span className="font-normal text-gray-500">
+                            {" "}/ night
+                          </span>
+                        </span>
+                      </div>
+
+                      <div className="mt-5 border-t border-[#e3dfd4] pt-4 text-sm font-semibold text-[#234b3b]">
+                        View Cottage →
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
     </main>
   );
 }
-  
