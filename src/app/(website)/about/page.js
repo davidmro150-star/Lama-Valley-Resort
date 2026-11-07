@@ -101,10 +101,10 @@ export default function AboutPage() {
 
           <div className="relative">
             <div className="relative aspect-[4/5] overflow-hidden rounded-xl">
-              <Image
-                src="https://cdn.jagonews24.com/media/imgAllNew/BG/2023March/cover-20241215152036.jpg"
-                alt="Traditional bamboo hut in the hills of Mirinja, Bandarban"
-                fill
+             <Image
+  src="https://res.cloudinary.com/oncwdbly/image/upload/v1793992862/lama-valley-resort/gyfmrzx3ukmjobvltoik.jpg"
+  alt="Lama Valley Resort surrounded by natural scenery"
+  fill
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 className="object-cover"
               />
