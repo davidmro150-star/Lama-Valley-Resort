@@ -2,233 +2,221 @@
 import Image from "next/image";
 import Link from "next/link";
 
-const foodImages = [
-  {
-    src: "https://images.unsplash.com/photo-1547592180-85f173990554",
-    alt: "Freshly prepared traditional food",
-    title: "Traditional Cuisine",
-    category: "Local Favorites",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c",
-    alt: "Fresh healthy meal",
-    title: "Fresh & Healthy",
-    category: "Healthy Dining",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0",
-    alt: "Restaurant dining experience",
-    title: "Dining Experience",
-    category: "Restaurant",
-  },
-];
-
-const highlights = [
-  {
-    number: "01",
-    title: "Fresh Ingredients",
-    description:
-      "We focus on fresh ingredients and carefully prepared meals for our guests.",
-  },
-  {
-    number: "02",
-    title: "Local Flavors",
-    description:
-      "Enjoy delicious meals inspired by local food traditions and familiar favorites.",
-  },
-  {
-    number: "03",
-    title: "Mountain Atmosphere",
-    description:
-      "Enjoy your meal while experiencing the peaceful surroundings of Lama.",
-  },
-];
+import connectDB from "@/lib/mongodb";
+import MenuItem from "@/models/MenuItem";
 
 export const metadata = {
   title: "Restaurant | Lama Valley Resort",
   description:
-    "Discover the dining experience at Lama Valley Resort and Restaurant in Bandarban.",
+    "Enjoy delicious local and traditional food at Lama Valley Resort and Restaurant.",
 };
 
-export default function RestaurantPage() {
+const categories = [
+  {
+    name: "Breakfast",
+    slug: "breakfast",
+    description:
+      "Start your day with a delicious breakfast surrounded by the beautiful hills of Lama.",
+    fallbackImage:
+      "https://images.unsplash.com/photo-1533089860892-a7c6f0a88666",
+  },
+  {
+    name: "Lunch",
+    slug: "lunch",
+    description:
+      "Enjoy freshly prepared lunch featuring local flavours and delicious meals.",
+    fallbackImage:
+      "https://images.unsplash.com/photo-1547592180-85f173990554",
+  },
+  {
+    name: "Dinner",
+    slug: "dinner",
+    description:
+      "Relax and enjoy a memorable dinner with family and friends.",
+    fallbackImage:
+      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
+  },
+  {
+    name: "Desserts",
+    slug: "desserts",
+    description:
+      "Discover sweet treats and delightful desserts to complete your meal.",
+    fallbackImage:
+      "https://images.unsplash.com/photo-1488477181946-6428a0291777",
+  },
+];
+
+export default async function RestaurantPage() {
+  let menuItems = [];
+
+  try {
+    await connectDB();
+
+    menuItems = await MenuItem.find({
+      category: {
+        $in: categories.map((category) => category.name),
+      },
+      isAvailable: true,
+      imageUrl: { $nin: ["", null] },
+    })
+      .sort({ order: 1, createdAt: -1 })
+      .select("category imageUrl")
+      .lean();
+  } catch (error) {
+    console.error("Restaurant category images error:", error);
+  }
+
+  // Get the first available uploaded image for each category.
+  const categoryImages = new Map();
+
+  for (const item of menuItems) {
+    if (!categoryImages.has(item.category)) {
+      categoryImages.set(item.category, item.imageUrl);
+    }
+  }
+
+  const updatedCategories = categories.map((category) => ({
+    ...category,
+    image:
+      categoryImages.get(category.name) || category.fallbackImage,
+  }));
+
   return (
     <main className="bg-[#f7f5ef] text-[#173729]">
       {/* Hero */}
-      <section className="relative flex min-h-[65vh] items-center justify-center overflow-hidden">
+      <section className="relative flex min-h-[420px] items-center justify-center overflow-hidden">
         <Image
           src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0"
-          alt="Restaurant dining atmosphere"
+          alt="Restaurant dining experience"
           fill
           priority
-          sizes="100vw"
           className="object-cover"
+          sizes="100vw"
         />
 
         <div className="absolute inset-0 bg-black/55" />
 
-        <div className="relative z-10 mx-auto max-w-4xl px-6 py-24 text-center text-white">
-          <p className="mb-5 text-sm font-semibold uppercase tracking-[0.35em] text-[#d8b77e]">
-            Taste the Experience
+        <div className="relative z-10 mx-auto max-w-4xl px-5 py-24 text-center text-white">
+          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-[#e5c18e]">
+            Lama Valley Resort
           </p>
 
-          <h1 className="font-serif text-4xl leading-tight md:text-6xl lg:text-7xl">
-            Dining at Lama Valley
+          <h1 className="font-serif text-4xl font-bold sm:text-5xl md:text-6xl">
+            Restaurant & Dining
           </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-white/85 md:text-lg">
-            Enjoy delicious food, welcoming hospitality, and peaceful
-            mountain surroundings at Lama Valley Resort and Restaurant.
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-white/90 sm:text-lg">
+            Experience delicious food, traditional flavours and a relaxing
+            dining atmosphere in the beautiful hills of Lama.
           </p>
-
-          <a
-            href="#food"
-            className="mt-9 inline-flex rounded-full bg-[#c49a62] px-8 py-4 text-sm font-semibold text-white transition hover:bg-[#a9804d]"
-          >
-            Explore Our Dining
-          </a>
         </div>
       </section>
 
       {/* Introduction */}
-      <section className="mx-auto grid max-w-7xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center lg:px-10 lg:py-28">
-        <div>
-          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-[#a9804d]">
-            Welcome to Our Restaurant
+      <section className="px-5 py-16 sm:py-20">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#a9804d]">
+            Fresh Food & Local Flavours
           </p>
 
-          <h2 className="font-serif text-3xl leading-tight md:text-5xl">
-            Good Food, Beautiful Surroundings
+          <h2 className="font-serif text-3xl font-bold sm:text-4xl">
+            A Taste of Lama Valley
           </h2>
 
-          <p className="mt-6 leading-8 text-[#647067]">
-            At Lama Valley Resort and Restaurant, dining is part of the
-            overall experience. Relax, enjoy your time with family and
-            friends, and discover the flavors of the region.
+          <p className="mt-6 text-base leading-8 text-gray-600">
+            Enjoy freshly prepared meals made for our guests. Explore our
+            restaurant menu and discover delicious dishes for every taste.
           </p>
-
-          <p className="mt-4 leading-8 text-[#647067]">
-            Whether you are staying at our resort or visiting for a meal,
-            we look forward to welcoming you.
-          </p>
-
-          <Link
-            href="/contact"
-            className="mt-8 inline-flex border-b border-[#a9804d] pb-2 text-sm font-semibold text-[#234b3b] transition hover:text-[#a9804d]"
-          >
-            Contact Us →
-          </Link>
-        </div>
-
-        <div className="relative min-h-[350px] overflow-hidden rounded-2xl md:min-h-[500px]">
-          <Image
-            src={foodImages[0].src}
-            alt={foodImages[0].alt}
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover"
-          />
         </div>
       </section>
 
-      {/* Food Gallery */}
-      <section id="food" className="bg-white px-6 py-20 lg:px-10 lg:py-28">
+      {/* Menu Categories */}
+      <section className="bg-white px-5 py-16 sm:py-20">
         <div className="mx-auto max-w-7xl">
-          <div className="mx-auto mb-14 max-w-2xl text-center">
-            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-[#a9804d]">
-              Our Dining Gallery
+          <div className="mb-12 text-center">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#a9804d]">
+              From Our Kitchen
             </p>
 
-            <h2 className="font-serif text-3xl md:text-5xl">
-              A Taste of Lama Valley
+            <h2 className="font-serif text-3xl font-bold sm:text-4xl">
+              Explore Our Menu
             </h2>
 
-            <p className="mt-5 leading-8 text-[#647067]">
-              Explore the dining atmosphere and food experiences awaiting
-              you at our restaurant.
+            <p className="mx-auto mt-5 max-w-2xl leading-7 text-gray-600">
+              Choose your favourite dining category and explore our
+              freshly prepared dishes, complete with descriptions and prices.
             </p>
           </div>
 
-          <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
-            {foodImages.map((item) => (
-              <article key={item.title} className="group">
-                <div className="relative h-[320px] overflow-hidden rounded-xl">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {updatedCategories.map((category) => (
+              <Link
+                key={category.slug}
+                href={`/restaurant/${category.slug}`}
+                className="group overflow-hidden rounded-2xl border border-[#eee9df] bg-[#fdfcf9] transition duration-300 hover:-translate-y-2 hover:shadow-xl"
+              >
+                {/* Category Image */}
+                <div className="relative h-64 overflow-hidden bg-[#eee9df]">
                   <Image
-                    src={item.src}
-                    alt={item.alt}
+                    src={category.image}
+                    alt={category.name}
                     fill
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                    className="object-cover transition duration-700 group-hover:scale-105"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                    className="object-cover transition duration-500 group-hover:scale-110"
                   />
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                  <h3 className="absolute bottom-5 left-5 font-serif text-2xl font-bold text-white">
+                    {category.name}
+                  </h3>
                 </div>
 
-                <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-[#a9804d]">
-                  {item.category}
-                </p>
+                {/* Category Details */}
+                <div className="p-6">
+                  <p className="min-h-[84px] text-sm leading-7 text-gray-600">
+                    {category.description}
+                  </p>
 
-                <h3 className="mt-2 font-serif text-2xl">
-                  {item.title}
-                </h3>
-              </article>
+                  <div className="mt-5 flex items-center justify-between border-t border-[#e9e3d8] pt-4">
+                    <span className="text-sm font-semibold text-[#234b3b]">
+                      Explore Menu
+                    </span>
+
+                    <span className="text-xl text-[#a9804d] transition-transform duration-300 group-hover:translate-x-2">
+                      →
+                    </span>
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Restaurant Highlights */}
-      <section className="mx-auto max-w-7xl px-6 py-20 lg:px-10 lg:py-28">
-        <div className="mb-14 max-w-2xl">
-          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-[#a9804d]">
-            Why Dine With Us
+      {/* Contact CTA */}
+      <section className="bg-[#173729] px-5 py-16 text-center text-white sm:py-20">
+        <div className="mx-auto max-w-3xl">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#e5c18e]">
+            Visit Lama Valley
           </p>
 
-          <h2 className="font-serif text-3xl md:text-5xl">
-            More Than Just a Meal
+          <h2 className="font-serif text-3xl font-bold sm:text-4xl">
+            Enjoy a Wonderful Dining Experience
           </h2>
+
+          <p className="mx-auto mt-5 max-w-xl leading-7 text-white/80">
+            Planning a visit? Contact us to learn more about our restaurant
+            and dining experience.
+          </p>
+
+          <Link
+            href="/contact"
+            className="mt-8 inline-flex rounded-full bg-[#c49a62] px-8 py-4 font-semibold text-white transition hover:bg-[#a9804d]"
+          >
+            Contact Us
+          </Link>
         </div>
-
-        <div className="grid gap-10 md:grid-cols-3">
-          {highlights.map((item) => (
-            <article
-              key={item.number}
-              className="border-t border-[#d9d5ca] pt-7"
-            >
-              <span className="text-sm font-semibold text-[#a9804d]">
-                {item.number}
-              </span>
-
-              <h3 className="mt-5 font-serif text-2xl">
-                {item.title}
-              </h3>
-
-              <p className="mt-4 leading-8 text-[#647067]">
-                {item.description}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="bg-[#173729] px-6 py-20 text-center text-white">
-        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-[#d8b77e]">
-          Visit Lama Valley
-        </p>
-
-        <h2 className="mx-auto max-w-3xl font-serif text-3xl leading-tight md:text-5xl">
-          Make Your Mountain Getaway Even More Memorable
-        </h2>
-
-        <p className="mx-auto mt-6 max-w-xl leading-8 text-white/75">
-          Get in touch with our team to learn more about dining and
-          visiting Lama Valley Resort and Restaurant.
-        </p>
-
-        <Link
-          href="/contact"
-          className="mt-9 inline-flex rounded-full bg-[#c49a62] px-9 py-4 text-sm font-semibold text-white transition hover:bg-[#a9804d]"
-        >
-          Contact Our Team
-        </Link>
       </section>
     </main>
   );
