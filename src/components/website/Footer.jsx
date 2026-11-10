@@ -5,6 +5,7 @@ import {
   Phone,
   Mail,
   ArrowUpRight,
+  Globe,
 } from "lucide-react";
 import Logo from "@/components/shared/Logo";
 import connectDB from "@/lib/mongodb";
@@ -34,7 +35,16 @@ const defaultSettings = {
   mapLink: "",
   shortDescription:
     "Discover the peaceful beauty of Lama, Bandarban. Enjoy a relaxing escape surrounded by the natural charm of the hills.",
+  socialMedia: {},
 };
+
+const socialPlatforms = [
+  { name: "Facebook", key: "facebook", label: "f" },
+  { name: "Instagram", key: "instagram", label: "◎" },
+  { name: "YouTube", key: "youtube", label: "▶" },
+  { name: "TikTok", key: "tiktok", label: "♪" },
+  { name: "LinkedIn", key: "linkedin", label: "in" },
+];
 
 async function getSiteSettings() {
   try {
@@ -45,6 +55,10 @@ async function getSiteSettings() {
     return {
       ...defaultSettings,
       ...(settings || {}),
+      socialMedia: {
+        ...defaultSettings.socialMedia,
+        ...(settings?.socialMedia || {}),
+      },
     };
   } catch (error) {
     console.error("Footer settings error:", error);
@@ -54,6 +68,12 @@ async function getSiteSettings() {
 
 export default async function Footer() {
   const settings = await getSiteSettings();
+
+  const activeSocialLinks = socialPlatforms.filter(
+    (platform) =>
+      typeof settings.socialMedia?.[platform.key] === "string" &&
+      settings.socialMedia[platform.key].trim()
+  );
 
   return (
     <footer className="bg-[#142b21] text-white">
@@ -67,6 +87,38 @@ export default async function Footer() {
           <p className="mt-6 max-w-xs text-sm leading-7 text-white/65">
             {settings.shortDescription}
           </p>
+          <div>
+            <p className="mt-6 max-w-xs text-sm leading-7 text-white/65">
+              Discover the peaceful beauty of Lama, Bandarban.
+              Enjoy a relaxing escape surrounded by the natural
+              charm of the hills.
+            </p>
+          </div>
+         
+          {/* Social Media */}
+          {activeSocialLinks.length > 0 && (
+            <div className="mt-7">
+              <h3 className="mb-4 text-sm font-semibold text-white">
+                Follow Us
+              </h3>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {activeSocialLinks.map((platform) => (
+                  <a
+                    key={platform.key}
+                    href={settings.socialMedia[platform.key]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Visit our ${platform.name} page`}
+                    title={platform.name}
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-sm font-semibold text-white/75 transition-all hover:border-accent-light hover:bg-accent-light hover:text-[#142b21]"
+                  >
+                    {platform.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick Links */}
@@ -116,7 +168,6 @@ export default async function Footer() {
           </h3>
 
           <ul className="space-y-5">
-
             {/* Address */}
             <li className="flex items-start gap-3">
               <MapPin size={18} className="mt-1 shrink-0 text-accent-light" />
@@ -172,7 +223,6 @@ export default async function Footer() {
                 </span>
               )}
             </li>
-
           </ul>
 
           <Link
