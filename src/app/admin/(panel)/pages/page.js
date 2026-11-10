@@ -6,34 +6,37 @@ import {
   Contact,
   Images,
   ArrowRight,
-  FileText,
 } from "lucide-react";
 
 const pages = [
   {
     title: "Home Page",
-    description: "Manage the homepage content, hero section and resort introduction.",
+    description:
+      "Manage the homepage content, hero section and resort introduction.",
     icon: House,
-    href: null,
-    status: "Coming Soon",
+    href: "/admin/home-page",
+    status: "Available",
   },
   {
     title: "About Us",
-    description: "Manage the resort story, introduction and about section.",
+    description:
+      "Manage the resort story, introduction and about section.",
     icon: Info,
     href: null,
     status: "Coming Soon",
   },
   {
     title: "Contact Page",
-    description: "Manage contact information, address, map and page content.",
+    description:
+      "Manage contact information, address, map and page content.",
     icon: Contact,
     href: "/admin/contact-page",
     status: "Available",
   },
   {
     title: "Gallery",
-    description: "Manage resort photographs displayed on the public website.",
+    description:
+      "Manage resort photographs displayed on the public website.",
     icon: Images,
     href: "/admin/gallery",
     status: "Available",
