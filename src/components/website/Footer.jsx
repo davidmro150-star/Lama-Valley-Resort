@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import {
   MapPin,
@@ -6,6 +7,8 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import Logo from "@/components/shared/Logo";
+import connectDB from "@/lib/mongodb";
+import SiteSettings from "@/models/SiteSettings";
 
 const quickLinks = [
   { name: "Home", href: "/" },
@@ -23,10 +26,37 @@ const exploreLinks = [
   { name: "Book Your Stay", href: "/booking" },
 ];
 
-export default function Footer() {
+const defaultSettings = {
+  resortName: "Lama Valley Resort & Restaurant",
+  phone: "",
+  email: "",
+  address: "Lama, Bandarban, Bangladesh",
+  mapLink: "",
+  shortDescription:
+    "Discover the peaceful beauty of Lama, Bandarban. Enjoy a relaxing escape surrounded by the natural charm of the hills.",
+};
+
+async function getSiteSettings() {
+  try {
+    await connectDB();
+
+    const settings = await SiteSettings.findOne().lean();
+
+    return {
+      ...defaultSettings,
+      ...(settings || {}),
+    };
+  } catch (error) {
+    console.error("Footer settings error:", error);
+    return defaultSettings;
+  }
+}
+
+export default async function Footer() {
+  const settings = await getSiteSettings();
+
   return (
     <footer className="bg-[#142b21] text-white">
-
       {/* Main Footer */}
       <div className="container grid gap-12 py-16 sm:grid-cols-2 lg:grid-cols-4 lg:gap-10">
 
@@ -35,9 +65,7 @@ export default function Footer() {
           <Logo light />
 
           <p className="mt-6 max-w-xs text-sm leading-7 text-white/65">
-            Discover the peaceful beauty of Lama, Bandarban.
-            Enjoy a relaxing escape surrounded by the natural
-            charm of the hills.
+            {settings.shortDescription}
           </p>
         </div>
 
@@ -88,26 +116,63 @@ export default function Footer() {
           </h3>
 
           <ul className="space-y-5">
+
+            {/* Address */}
             <li className="flex items-start gap-3">
               <MapPin size={18} className="mt-1 shrink-0 text-accent-light" />
-              <span className="text-sm leading-6 text-white/65">
-                Lama, Bandarban, Bangladesh
-              </span>
+
+              {settings.mapLink ? (
+                <a
+                  href={settings.mapLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm leading-6 text-white/65 transition hover:text-accent-light"
+                >
+                  {settings.address}
+                </a>
+              ) : (
+                <span className="text-sm leading-6 text-white/65">
+                  {settings.address}
+                </span>
+              )}
             </li>
 
+            {/* Phone */}
             <li className="flex items-center gap-3">
               <Phone size={18} className="shrink-0 text-accent-light" />
-              <span className="text-sm text-white/65">
-                Contact number coming soon
-              </span>
+
+              {settings.phone ? (
+                <a
+                  href={`tel:${settings.phone}`}
+                  className="text-sm text-white/65 transition hover:text-accent-light"
+                >
+                  {settings.phone}
+                </a>
+              ) : (
+                <span className="text-sm text-white/65">
+                  Contact number coming soon
+                </span>
+              )}
             </li>
 
+            {/* Email */}
             <li className="flex items-center gap-3">
               <Mail size={18} className="shrink-0 text-accent-light" />
-              <span className="text-sm text-white/65">
-                Email coming soon
-              </span>
+
+              {settings.email ? (
+                <a
+                  href={`mailto:${settings.email}`}
+                  className="break-all text-sm text-white/65 transition hover:text-accent-light"
+                >
+                  {settings.email}
+                </a>
+              ) : (
+                <span className="text-sm text-white/65">
+                  Email coming soon
+                </span>
+              )}
             </li>
+
           </ul>
 
           <Link
@@ -118,14 +183,13 @@ export default function Footer() {
             <ArrowUpRight size={16} />
           </Link>
         </div>
-
       </div>
 
       {/* Copyright */}
       <div className="border-t border-white/10">
         <div className="container flex flex-col items-center justify-between gap-4 py-6 text-center sm:flex-row sm:text-left">
           <p className="text-xs text-white/50">
-            © {new Date().getFullYear()} Lama Valley Resort & Restaurant.
+            © {new Date().getFullYear()} {settings.resortName}.
             All rights reserved.
           </p>
 
@@ -134,7 +198,6 @@ export default function Footer() {
           </p>
         </div>
       </div>
-
     </footer>
   );
 }

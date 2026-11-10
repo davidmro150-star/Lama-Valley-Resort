@@ -6,6 +6,7 @@ import {
   Contact,
   Images,
   ArrowRight,
+  BookOpen,
 } from "lucide-react";
 
 const pages = [
@@ -21,9 +22,9 @@ const pages = [
     title: "About Us",
     description:
       "Manage the resort story, introduction and about section.",
-    icon: Info,
-    href: null,
-    status: "Coming Soon",
+    icon: BookOpen,
+    href: "/admin/about-page",
+    status: "Available",
   },
   {
     title: "Contact Page",

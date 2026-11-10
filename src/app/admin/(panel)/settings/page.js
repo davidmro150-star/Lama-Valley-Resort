@@ -15,35 +15,40 @@ const settingsSections = [
     description:
       "Manage resort name, contact number, email address and location.",
     icon: Building2,
-    status: "Coming Soon",
+    href: "/admin/settings/general",
+    available: true,
   },
   {
     title: "Branding & Appearance",
     description:
       "Manage your resort logo, website identity and visual appearance.",
     icon: Palette,
-    status: "Coming Soon",
+    href: null,
+    available: false,
   },
   {
     title: "Social Media",
     description:
       "Add and update Facebook, Instagram and other social media links.",
     icon: Share2,
-    status: "Coming Soon",
+    href: null,
+    available: false,
   },
   {
     title: "SEO Settings",
     description:
       "Configure default website titles, descriptions and search engine information.",
     icon: Search,
-    status: "Coming Soon",
+    href: null,
+    available: false,
   },
   {
     title: "Booking Configuration",
     description:
       "Manage booking policies, cancellation rules and general reservation settings.",
     icon: CalendarDays,
-    status: "Coming Soon",
+    href: null,
+    available: false,
   },
 ];
 
@@ -68,18 +73,27 @@ export default function SettingsPage() {
         {settingsSections.map((section) => {
           const Icon = section.icon;
 
-          return (
+          const content = (
             <div
-              key={section.title}
-              className="rounded-xl border border-[#e8e4da] bg-white p-6 transition hover:border-[#426b55] hover:shadow-md"
+              className={`flex h-full flex-col rounded-xl border border-[#e8e4da] bg-white p-6 transition ${
+                section.available
+                  ? "hover:border-[#426b55] hover:shadow-md"
+                  : "opacity-75"
+              }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#edf2ed] text-[#234b3b]">
                   <Icon size={23} strokeWidth={1.7} />
                 </div>
 
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-[10px] font-semibold text-gray-500">
-                  {section.status}
+                <span
+                  className={`rounded-full px-3 py-1 text-[10px] font-semibold ${
+                    section.available
+                      ? "bg-green-50 text-green-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {section.available ? "Available" : "Coming Soon"}
                 </span>
               </div>
 
@@ -87,15 +101,30 @@ export default function SettingsPage() {
                 {section.title}
               </h2>
 
-              <p className="mt-2 min-h-12 text-sm leading-6 text-gray-500">
+              <p className="mt-2 flex-1 text-sm leading-6 text-gray-500">
                 {section.description}
               </p>
 
-              <div className="mt-5 flex items-center gap-2 text-sm font-semibold text-gray-400">
-                Configure Settings
-                <ArrowRight size={16} />
+              <div
+                className={`mt-5 flex items-center gap-2 text-sm font-semibold ${
+                  section.available ? "text-[#426b55]" : "text-gray-400"
+                }`}
+              >
+                {section.available
+                  ? "Configure Settings"
+                  : "Not Available Yet"}
+
+                {section.available && <ArrowRight size={16} />}
               </div>
             </div>
+          );
+
+          return section.available ? (
+            <Link key={section.title} href={section.href}>
+              {content}
+            </Link>
+          ) : (
+            <div key={section.title}>{content}</div>
           );
         })}
       </div>

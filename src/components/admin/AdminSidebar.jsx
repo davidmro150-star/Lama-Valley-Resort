@@ -73,7 +73,12 @@ const navigation = [
         icon: FileText,
         available: true,
       },
-
+      {
+        name: "About Page",
+        href: "/admin/about-page",
+        icon: FileText,
+        available: true,
+      },
       {
         name: "Contact Page",
         href: "/admin/contact-page",
