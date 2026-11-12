@@ -9,7 +9,6 @@ import sendBookingConfirmation from "@/lib/sendBookingConfirmation";
 import sendBookingCancellation from "@/lib/sendBookingCancellation";
 import sendBookingRejection from "@/lib/sendBookingRejection";
 
-import Cottage from "@/models/Cottage";
 import Booking from "@/models/booking";
 
 export async function PATCH(request, { params }) {
@@ -46,6 +45,109 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    await connectDB();
+
+    // 4. Find booking
+    const existingBooking = await Booking.findById(id);
+
+    if (!existingBooking) {
+      return NextResponse.json(
+        { success: false, message: "Booking not found." },
+        { status: 404 }
+      );
+    }
+
+    // 5. Payment verification action
+    if (body?.action === "verify-payment") {
+      if (existingBooking.status !== "pending") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Only pending bookings can have their payment verified.",
+          },
+          { status: 409 }
+        );
+      }
+
+      if (existingBooking.paymentStatus !== "submitted") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "This payment is not awaiting verification.",
+          },
+          { status: 409 }
+        );
+      }
+
+      if (
+        !existingBooking.transactionId ||
+        !existingBooking.paymentProof?.publicId ||
+        !existingBooking.paymentAmount ||
+        existingBooking.paymentAmount <= 0
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Payment details or screenshot are incomplete.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const adminId = session.user.id || session.user._id;
+
+      const updateFields = {
+        paymentStatus: "verified",
+        paymentVerifiedAt: new Date(),
+      };
+
+      if (
+        adminId &&
+        mongoose.Types.ObjectId.isValid(adminId)
+      ) {
+        updateFields.paymentVerifiedBy = adminId;
+      }
+
+      // Atomic update prevents duplicate verification
+      const booking = await Booking.findOneAndUpdate(
+        {
+          _id: id,
+          status: "pending",
+          paymentStatus: "submitted",
+        },
+        {
+          $set: updateFields,
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+      if (!booking) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Payment has already been updated. Please refresh.",
+          },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message:
+          "Payment verified successfully. You can now confirm this booking.",
+        booking: {
+          id: booking._id.toString(),
+          status: booking.status,
+          paymentStatus: booking.paymentStatus,
+          paymentAmount: booking.paymentAmount,
+        },
+      });
+    }
+
+    // 6. Validate booking status action
     const { status } = body || {};
 
     const allowedStatuses = [
@@ -59,23 +161,43 @@ export async function PATCH(request, { params }) {
       !allowedStatuses.includes(status)
     ) {
       return NextResponse.json(
-        { success: false, message: "Invalid booking status." },
+        { success: false, message: "Invalid booking action." },
         { status: 400 }
       );
     }
 
-    await connectDB();
-
-    // 4. Determine the allowed previous status
+    // 7. Determine required previous booking status
     const requiredPreviousStatus =
       status === "cancelled" ? "confirmed" : "pending";
 
-    // 5. Atomically update the booking
+    // IMPORTANT:
+    // A booking cannot be confirmed until payment is verified.
+    if (
+      status === "confirmed" &&
+      existingBooking.paymentStatus !== "verified"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Please verify the guest's payment before confirming this booking.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 8. Atomically update booking
+    const updateQuery = {
+      _id: id,
+      status: requiredPreviousStatus,
+    };
+
+    if (status === "confirmed") {
+      updateQuery.paymentStatus = "verified";
+    }
+
     const booking = await Booking.findOneAndUpdate(
-      {
-        _id: id,
-        status: requiredPreviousStatus,
-      },
+      updateQuery,
       {
         $set: { status },
       },
@@ -85,17 +207,7 @@ export async function PATCH(request, { params }) {
       }
     );
 
-    // 6. Handle missing bookings and conflicting updates
     if (!booking) {
-      const existingBooking = await Booking.exists({ _id: id });
-
-      if (!existingBooking) {
-        return NextResponse.json(
-          { success: false, message: "Booking not found." },
-          { status: 404 }
-        );
-      }
-
       return NextResponse.json(
         {
           success: false,
@@ -106,7 +218,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 7. Send the appropriate email
+    // 9. Send appropriate email
     let emailSent = false;
 
     try {
@@ -136,7 +248,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 8. Return the result
+    // 10. Prepare response message
     let message;
 
     if (status === "confirmed") {
@@ -160,6 +272,7 @@ export async function PATCH(request, { params }) {
       booking: {
         id: booking._id.toString(),
         status: booking.status,
+        paymentStatus: booking.paymentStatus,
       },
     });
   } catch (error) {

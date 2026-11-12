@@ -20,16 +20,28 @@ export default function CottageBookingWrapper({ cottage }) {
   };
 
   useEffect(() => {
+    if (!cottage?.slug) return;
+
     let isMounted = true;
+    let isFetching = false;
+    let controller = null;
 
-    async function fetchAvailability() {
+    async function fetchAvailability(isInitial = false) {
+      // Prevent overlapping requests.
+      if (isFetching) return;
+
+      isFetching = true;
+      controller = new AbortController();
+
       try {
-        setLoadingAvailability(true);
-        setAvailabilityError("");
-        setUnavailableDates([]);
-
         const response = await fetch(
-          `/api/bookings/availability?slug=${encodeURIComponent(cottage.slug)}`
+          `/api/bookings/availability?slug=${encodeURIComponent(
+            cottage.slug
+          )}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
         );
 
         const data = await response.json();
@@ -42,28 +54,60 @@ export default function CottageBookingWrapper({ cottage }) {
 
         if (isMounted) {
           setUnavailableDates(data.unavailableDates || []);
+          setAvailabilityError("");
         }
       } catch (error) {
-        console.error("Availability fetch error:", error);
+        if (error.name !== "AbortError") {
+          console.error("Availability fetch error:", error);
 
-        if (isMounted) {
-          setAvailabilityError(
-            "Unable to load availability. Please refresh the page."
-          );
+          if (isMounted && isInitial) {
+            setAvailabilityError(
+              "Unable to load availability. Please refresh the page."
+            );
+          }
         }
       } finally {
-        if (isMounted) {
+        isFetching = false;
+
+        if (isMounted && isInitial) {
           setLoadingAvailability(false);
         }
       }
     }
 
-    if (cottage?.slug) {
-      fetchAvailability();
-    }
+    // Initial availability request.
+    fetchAvailability(true);
+
+    // Refresh availability every 15 seconds.
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchAvailability();
+      }
+    }, 15000);
+
+    // Refresh immediately when the guest returns to the tab.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchAvailability();
+      }
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
 
     return () => {
       isMounted = false;
+
+      clearInterval(interval);
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+
+      controller?.abort();
     };
   }, [cottage?.slug]);
 

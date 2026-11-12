@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 
@@ -32,23 +33,21 @@ export async function GET(request) {
 
     const now = new Date();
 
+    // Pending and confirmed bookings block these dates.
+    // Rejected and cancelled bookings do not.
     const bookings = await Booking.find({
       cottage: cottage._id,
-      $or: [
-        { status: "confirmed" },
-        {
-          status: "pending",
-          expiresAt: { $gt: now },
-        },
-      ],
+      status: { $in: ["pending", "confirmed"] },
       checkOut: { $gt: now },
-    }).select("checkIn checkOut -_id");
+    })
+      .select("checkIn checkOut -_id")
+      .lean();
 
     return NextResponse.json({
       success: true,
       cottage: cottage.name,
       unavailableDates: bookings.map((booking) => ({
-        checkIn: Booking.checkIn,
+        checkIn: booking.checkIn,
         checkOut: booking.checkOut,
       })),
     });
@@ -56,7 +55,10 @@ export async function GET(request) {
     console.error("Availability API error:", error);
 
     return NextResponse.json(
-      { success: false, message: "Failed to check availability" },
+      {
+        success: false,
+        message: "Failed to check availability",
+      },
       { status: 500 }
     );
   }

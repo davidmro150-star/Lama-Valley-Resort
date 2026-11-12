@@ -4,7 +4,6 @@ import { randomBytes } from "crypto";
 
 const bookingSchema = new mongoose.Schema(
   {
-    // Unique reference guests can use to check their bookings
     bookingReference: {
       type: String,
       unique: true,
@@ -60,6 +59,77 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // Advance payment information
+    advancePercentage: {
+      type: Number,
+      enum: [30, 50],
+    },
+
+    paymentAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["bkash", "nagad", "bank"],
+    },
+
+    transactionId: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
+
+    // Store private Cloudinary asset information, not a public image URL
+    paymentProof: {
+      publicId: {
+        type: String,
+        trim: true,
+      },
+      format: {
+        type: String,
+        trim: true,
+      },
+      bytes: {
+        type: Number,
+        min: 0,
+      },
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: [
+        "unpaid",
+        "submitted",
+        "verified",
+        "rejected",
+        "refunded",
+      ],
+      default: "unpaid",
+    },
+
+    paymentDeadline: {
+      type: Date,
+    },
+
+    paymentVerifiedAt: {
+      type: Date,
+    },
+
+    paymentVerifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    paymentRejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
+
     status: {
       type: String,
       enum: [
@@ -70,30 +140,19 @@ const bookingSchema = new mongoose.Schema(
       ],
       default: "pending",
     },
-
-    paymentStatus: {
-      type: String,
-      enum: ["unpaid", "paid", "refunded"],
-      default: "unpaid",
-    },
   },
   { timestamps: true }
 );
 
-// Generate a booking reference automatically
 bookingSchema.pre("validate", function () {
   if (!this.bookingReference) {
     const year = new Date().getFullYear();
-
-    const uniqueCode = randomBytes(4)
-      .toString("hex")
-      .toUpperCase();
+    const uniqueCode = randomBytes(4).toString("hex").toUpperCase();
 
     this.bookingReference = `LV-${year}-${uniqueCode}`;
   }
 });
 
-// Improve booking availability queries
 bookingSchema.index({
   cottage: 1,
   status: 1,
@@ -101,8 +160,16 @@ bookingSchema.index({
   checkOut: 1,
 });
 
+bookingSchema.index({
+  cottage: 1,
+  paymentDeadline: 1,
+  status: 1,
+});
+
 const Booking =
-  mongoose.models.Booking ||
-  mongoose.model("Booking", bookingSchema);
+  mongoose.models.Booking &&
+  !mongoose.models.Booking.schema.path("paymentStatus").enumValues.includes("submitted")
+    ? (mongoose.deleteModel("Booking"), mongoose.model("Booking", bookingSchema))
+    : mongoose.models.Booking || mongoose.model("Booking", bookingSchema);
 
 export default Booking;

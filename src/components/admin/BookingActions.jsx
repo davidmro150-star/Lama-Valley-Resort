@@ -3,9 +3,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X, Ban, Loader2 } from "lucide-react";
+import {
+  Check,
+  X,
+  Ban,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 
-export default function BookingActions({ bookingId, status }) {
+export default function BookingActions({
+  bookingId,
+  status,
+  paymentStatus,
+}) {
   const router = useRouter();
 
   const [isPending, startTransition] = useTransition();
@@ -13,29 +23,20 @@ export default function BookingActions({ bookingId, status }) {
 
   const isPendingBooking = status === "pending";
   const isConfirmedBooking = status === "confirmed";
+  const isPaymentSubmitted = paymentStatus === "submitted";
+  const isPaymentVerified = paymentStatus === "verified";
 
-  if (!isPendingBooking && !isConfirmedBooking) {
-    return (
-      <span className="text-xs text-gray-400">
-        No actions available
-      </span>
-    );
-  }
-
-  async function updateBooking(nextStatus) {
-    const actionLabels = {
-      confirmed: "confirm",
-      rejected: "reject",
-      cancelled: "cancel",
+  async function performAction(action, value = null) {
+    const labels = {
+      "verify-payment": "verify this payment",
+      confirmed: "confirm this booking",
+      rejected: "reject this booking",
+      cancelled: "cancel this booking",
     };
 
-    const action = actionLabels[nextStatus];
-
-    const approved = window.confirm(
-      `Are you sure you want to ${action} this booking?`
-    );
-
-    if (!approved) return;
+    if (!window.confirm(`Are you sure you want to ${labels[action]}?`)) {
+      return;
+    }
 
     setMessage("");
 
@@ -48,70 +49,104 @@ export default function BookingActions({ bookingId, status }) {
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              status: nextStatus,
-            }),
+            body: JSON.stringify(
+              action === "verify-payment"
+                ? { action }
+                : { status: value }
+            ),
           }
         );
 
         const result = await response.json();
 
         if (!response.ok) {
-          setMessage(
-            result.message || "Unable to update booking."
-          );
+          setMessage(result.message || "Unable to update booking.");
           return;
         }
 
-        setMessage(result.message || "Booking updated.");
-
+        setMessage(result.message || "Booking updated successfully.");
         router.refresh();
       } catch (error) {
         console.error("Booking action error:", error);
-
         setMessage("Something went wrong. Please try again.");
       }
     });
   }
 
+  if (!isPendingBooking && !isConfirmedBooking) {
+    return (
+      <span className="text-xs text-gray-400">
+        No actions available
+      </span>
+    );
+  }
+
   return (
-    <div className="min-w-[150px] space-y-2">
-      {/* Pending Booking Actions */}
+    <div className="min-w-[140px] space-y-2">
       {isPendingBooking && (
-        <div className="flex items-center gap-2">
+        <>
+          {/* Payment Verification */}
+          {isPaymentSubmitted && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => performAction("verify-payment")}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isPending ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <ShieldCheck size={13} />
+              )}
+              Verify Payment
+            </button>
+          )}
+
+          {isPaymentVerified && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => performAction("confirmed", "confirmed")}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#234b3b] px-2 py-2 text-xs font-semibold text-white transition hover:bg-[#173729] disabled:opacity-50"
+            >
+              {isPending ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Check size={13} />
+              )}
+              Confirm Booking
+            </button>
+          )}
+
+          {/* Reject Booking */}
           <button
             type="button"
             disabled={isPending}
-            onClick={() => updateBooking("confirmed")}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#234b3b] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#173729] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => performAction("reject", "rejected")}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
           >
             {isPending ? (
               <Loader2 size={13} className="animate-spin" />
             ) : (
-              <Check size={13} />
+              <X size={13} />
             )}
-            Confirm
-          </button>
-
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => updateBooking("rejected")}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <X size={13} />
             Reject
           </button>
-        </div>
+
+          {!isPaymentSubmitted && !isPaymentVerified && (
+            <p className="text-[10px] text-amber-600">
+              Payment not submitted
+            </p>
+          )}
+        </>
       )}
 
-      {/* Confirmed Booking Actions */}
       {isConfirmedBooking && (
         <button
           type="button"
           disabled={isPending}
-          onClick={() => updateBooking("cancelled")}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => performAction("cancel", "cancelled")}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
         >
           {isPending ? (
             <Loader2 size={13} className="animate-spin" />
@@ -123,7 +158,7 @@ export default function BookingActions({ bookingId, status }) {
       )}
 
       {message && (
-        <p className="max-w-[180px] text-xs text-gray-500" role="status">
+        <p className="max-w-[180px] text-[10px] text-gray-500" role="status">
           {message}
         </p>
       )}

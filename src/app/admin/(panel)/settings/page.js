@@ -45,10 +45,10 @@ const settingsSections = [
   {
     title: "Booking Configuration",
     description:
-      "Manage booking policies, cancellation rules and general reservation settings.",
+      "Manage advance payments, bKash, Nagad, bank accounts and online booking availability.",
     icon: CalendarDays,
-    href: null,
-    available: false,
+    href: "/admin/settings/booking",
+    available: true,
   },
 ];
 
