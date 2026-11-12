@@ -11,10 +11,42 @@ import {
   ArrowRight,
 } from "lucide-react";
 
+const siteUrl = (
+  process.env.SITE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
+
 export const metadata = {
-  title: "Contact Us | Lama Valley Resort",
+  title: "Contact Lama Valley Resort | Lama, Bandarban",
   description:
-    "Contact Lama Valley Resort and Restaurant in Lama, Bandarban. Get in touch for cottage reservations, dining and enquiries.",
+    "Contact Lama Valley Resort & Restaurant in Lama, Bandarban for cottage reservations, restaurant enquiries, resort packages and travel information.",
+
+  keywords: [
+    "Contact Lama Valley Resort",
+    "Lama resort contact",
+    "Resort in Lama Bandarban",
+    "Lama Bandarban resort address",
+    "Bandarban cottage reservation",
+    "Lama Valley Resort location",
+  ],
+
+  alternates: {
+    canonical: `${siteUrl}/contact`,
+  },
+
+  openGraph: {
+    title: "Contact Us | Lama Valley Resort",
+    description:
+      "Get in touch with Lama Valley Resort in Lama, Bandarban. Contact our team for reservations, dining and enquiries.",
+    url: `${siteUrl}/contact`,
+    siteName: "Lama Valley Resort & Restaurant",
+    type: "website",
+    images: [
+      {
+        url: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e",
+        alt: "Beautiful mountain landscape near Lama Valley Resort",
+      },
+    ],
+  },
 };
 
 const contactDetails = [

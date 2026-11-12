@@ -7,14 +7,46 @@ import Package from "@/models/Package";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Resort Packages | Lama Valley Resort",
-  description:
-    "Explore getaway packages and accommodation experiences at Lama Valley Resort, Bandarban.",
-};
-
 const fallbackImage =
   "https://images.unsplash.com/photo-1449158743715-0a90ebb6d2d8";
+
+const siteUrl = (
+  process.env.SITE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
+
+export const metadata = {
+  title: "Resort Packages in Bandarban | Lama Valley Resort",
+  description:
+    "Explore resort packages, family getaways and hill retreat experiences at Lama Valley Resort in Lama, Bandarban. Discover our packages and plan your stay.",
+
+  keywords: [
+    "Resort packages in Bandarban",
+    "Lama Valley Resort packages",
+    "Lama resort packages",
+    "Family getaway in Bandarban",
+    "Hill resort packages in Bangladesh",
+    "Resort accommodation in Lama",
+  ],
+
+  alternates: {
+    canonical: `${siteUrl}/packages`,
+  },
+
+  openGraph: {
+    title: "Resort Packages | Lama Valley Resort",
+    description:
+      "Discover relaxing hill retreats, family getaways and memorable resort experiences at Lama Valley Resort, Lama, Bandarban.",
+    url: `${siteUrl}/packages`,
+    siteName: "Lama Valley Resort & Restaurant",
+    type: "website",
+    images: [
+      {
+        url: fallbackImage,
+        alt: "Peaceful mountain resort getaway at Lama Valley",
+      },
+    ],
+  },
+};
 
 export default async function PackagesPage() {
   let packages = [];
@@ -42,7 +74,6 @@ export default async function PackagesPage() {
 
   return (
     <main className="bg-[#f7f5ef] text-[#173729]">
-      {/* Hero */}
       <section className="relative flex min-h-[60vh] items-center justify-center overflow-hidden">
         <Image
           src={fallbackImage}
@@ -78,7 +109,6 @@ export default async function PackagesPage() {
         </div>
       </section>
 
-      {/* Packages */}
       <section
         id="packages"
         className="bg-white px-6 py-20 lg:px-10 lg:py-28"
@@ -196,7 +226,6 @@ export default async function PackagesPage() {
         </div>
       </section>
 
-      {/* Custom Experience */}
       <section className="mx-auto max-w-7xl px-6 py-20 lg:px-10 lg:py-28">
         <div className="grid gap-10 rounded-2xl bg-[#234b3b] p-8 text-white md:grid-cols-2 md:items-center md:p-14">
           <div>

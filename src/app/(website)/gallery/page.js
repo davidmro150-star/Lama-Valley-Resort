@@ -5,10 +5,43 @@ import Gallery from "@/models/Gallery";
 
 export const dynamic = "force-dynamic";
 
+const siteUrl = (
+  process.env.SITE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
+
 export const metadata = {
-  title: "Gallery | Lama Valley Resort",
+  title: "Resort Gallery in Lama, Bandarban | Lama Valley Resort",
   description:
-    "Explore the beautiful surroundings, cottages, dining and experiences at Lama Valley Resort.",
+    "Explore photos of Lama Valley Resort, including beautiful hill views, cottages, restaurant, nature and guest experiences in Lama, Bandarban.",
+
+  keywords: [
+    "Lama Valley Resort gallery",
+    "Lama Bandarban photos",
+    "Bandarban resort pictures",
+    "Resort in Lama Bandarban",
+    "Lama hill views",
+    "Bandarban nature resort",
+    "Lama Valley cottages",
+  ],
+
+  alternates: {
+    canonical: `${siteUrl}/gallery`,
+  },
+
+  openGraph: {
+    title: "Gallery | Lama Valley Resort",
+    description:
+      "Discover the natural beauty, cottages, restaurant and memorable experiences of Lama Valley Resort in Lama, Bandarban.",
+    url: `${siteUrl}/gallery`,
+    siteName: "Lama Valley Resort & Restaurant",
+    type: "website",
+    images: [
+      {
+        url: "https://images.unsplash.com/photo-1449158743715-0a90ebb6d2d8",
+        alt: "Beautiful natural surroundings of Lama Valley Resort",
+      },
+    ],
+  },
 };
 
 const categories = [

@@ -8,6 +8,7 @@ export async function generateMetadata() {
     resortName: "Lama Valley Resort & Restaurant",
     faviconUrl: "/favicon.ico",
     seo: {},
+    shortDescription: "",
   };
 
   try {
@@ -25,6 +26,7 @@ export async function generateMetadata() {
         settings.faviconUrl || defaultMetadata.faviconUrl;
 
       defaultMetadata.seo = settings.seo || {};
+
       defaultMetadata.shortDescription =
         settings.shortDescription || "";
     }
@@ -43,13 +45,15 @@ export async function generateMetadata() {
     defaultMetadata.shortDescription ||
     "Discover Lama Valley Resort & Restaurant in Lama, Bandarban. Enjoy comfortable accommodation, delicious dining, and beautiful hill scenery.";
 
-  const canonicalUrl = seo.canonicalUrl?.trim();
-
   const ogTitle = seo.ogTitle || title;
   const ogDescription = seo.ogDescription || description;
   const ogImage = seo.ogImage || "";
 
   return {
+    metadataBase: new URL(
+      (process.env.SITE_URL || "http://localhost:3000").replace(/\/$/, "")
+    ),
+
     title: {
       default: title,
       template: "%s | Lama Valley Resort",
@@ -60,12 +64,6 @@ export async function generateMetadata() {
     keywords: Array.isArray(seo.keywords)
       ? seo.keywords
       : [],
-
-    alternates: canonicalUrl
-      ? {
-          canonical: canonicalUrl,
-        }
-      : undefined,
 
     robots: {
       index: seo.robotsIndex !== false,
@@ -85,7 +83,6 @@ export async function generateMetadata() {
       description: ogDescription,
       siteName: defaultMetadata.resortName,
       type: seo.ogType || "website",
-      ...(canonicalUrl ? { url: canonicalUrl } : {}),
       ...(ogImage
         ? {
             images: [
