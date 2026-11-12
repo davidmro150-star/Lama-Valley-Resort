@@ -11,7 +11,13 @@ import CottageBookingWrapper from "@/components/website/CottageBookingWrapper";
 
 export const dynamic = "force-dynamic";
 
-// Convert MongoDB documents into plain JSON-safe objects.
+const siteUrl = (
+  process.env.SITE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
+
+const defaultDescription =
+  "Discover comfortable cottage accommodation surrounded by the natural beauty of Lama, Bandarban, Bangladesh. Book your stay at Lama Valley Resort & Restaurant.";
+
 function serializeData(data) {
   return JSON.parse(JSON.stringify(data));
 }
@@ -47,7 +53,7 @@ async function getRelatedCottages(currentSlug) {
   return serializeData(relatedData);
 }
 
-// Dynamic page metadata.
+// Dynamic SEO metadata.
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   const cottage = await getCottage(slug);
@@ -55,12 +61,68 @@ export async function generateMetadata({ params }) {
   if (!cottage) {
     return {
       title: "Cottage Not Found | Lama Valley Resort",
+      robots: {
+        index: false,
+        follow: false,
+      },
     };
   }
 
+  const cottageName = cottage.name || "Cottage";
+
+  const description = (
+    cottage.description || defaultDescription
+  )
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+
+  const title = `${cottageName} in Lama, Bandarban | Lama Valley Resort`;
+
+  const cottageImage = Array.isArray(cottage.images)
+    ? cottage.images.find(
+        (image) =>
+          typeof image === "string" && image.trim()
+      )
+    : null;
+
+  const canonicalUrl = `${siteUrl}/stays/${slug}`;
+
   return {
-    title: `${cottage.name} | Lama Valley Resort`,
-    description: cottage.description || "Discover our beautiful cottage at Lama Valley Resort.",
+    title,
+    description,
+
+    keywords: [
+      cottageName,
+      `${cottageName} Lama`,
+      `${cottageName} Bandarban`,
+      "Cottage in Lama",
+      "Lama Bandarban accommodation",
+      "Bandarban hill resort",
+      "Lama Valley Resort",
+    ],
+
+    alternates: {
+      canonical: canonicalUrl,
+    },
+
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      siteName: "Lama Valley Resort & Restaurant",
+      type: "website",
+      ...(cottageImage
+        ? {
+            images: [
+              {
+                url: cottageImage,
+                alt: cottageName,
+              },
+            ],
+          }
+        : {}),
+    },
   };
 }
 
@@ -76,7 +138,10 @@ export default async function CottageDetailsPage({ params }) {
   const relatedCottages = await getRelatedCottages(slug);
 
   const images = Array.isArray(cottage.images)
-    ? cottage.images.filter((image) => typeof image === "string" && image.trim())
+    ? cottage.images.filter(
+        (image) =>
+          typeof image === "string" && image.trim()
+      )
     : [];
 
   const facilities = Array.isArray(cottage.facilities)
@@ -385,7 +450,8 @@ export default async function CottageDetailsPage({ params }) {
                       </h3>
 
                       <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-500">
-                        {related.description || "Discover a relaxing stay at Lama Valley Resort."}
+                        {related.description ||
+                          "Discover a relaxing stay at Lama Valley Resort."}
                       </p>
 
                       <div className="mt-5 flex items-center justify-between">

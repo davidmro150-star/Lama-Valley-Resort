@@ -1,3 +1,4 @@
+
 import mongoose from "mongoose";
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -16,15 +17,31 @@ if (!cached) {
 }
 
 async function connectDB() {
-  if (cached.conn) {
+  if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn;
   }
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI).then((mongoose) => {
-      console.log("Connected database:", mongoose.connection.name);
-      return mongoose;
-    });
+    cached.promise = mongoose
+      .connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,
+        minPoolSize: 0,
+      })
+      .then((mongooseInstance) => {
+        console.log(
+          "MongoDB Connected:",
+          mongooseInstance.connection.name
+        );
+
+        return mongooseInstance;
+      })
+      .catch((error) => {
+        cached.promise = null;
+        throw error;
+      });
   }
 
   try {
@@ -32,6 +49,7 @@ async function connectDB() {
     return cached.conn;
   } catch (error) {
     cached.promise = null;
+    cached.conn = null;
     throw error;
   }
 }

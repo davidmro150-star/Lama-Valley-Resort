@@ -21,26 +21,26 @@ const settingsSections = [
   {
     title: "Branding & Appearance",
     description:
-      "Manage your resort logo, website identity and visual appearance.",
+      "Manage your resort logo, favicon, brand colors and website appearance.",
     icon: Palette,
-    href: null,
-    available: false,
+    href: "/admin/settings/branding",
+    available: true,
   },
   {
     title: "Social Media",
     description:
       "Add and update Facebook, Instagram and other social media links.",
     icon: Share2,
-    href: null,
-    available: false,
+    href: "/admin/settings/social-media",
+    available: true,
   },
   {
     title: "SEO Settings",
     description:
-      "Configure default website titles, descriptions and search engine information.",
+      "Configure website titles, descriptions, search engine indexing and social sharing information.",
     icon: Search,
-    href: null,
-    available: false,
+    href: "/admin/settings/seo",
+    available: true,
   },
   {
     title: "Booking Configuration",

@@ -17,13 +17,13 @@ const navigation = [
   { name: "Booking Status", href: "/booking-status" },
 ];
 
-export default function Navbar() {
+export default function Navbar({ logoUrl = "", logoAlt = "" }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background">
       <div className="container flex min-h-[84px] items-center justify-between">
-        <Logo />
+        <Logo logoUrl={logoUrl} logoAlt={logoAlt} />
 
         {/* Desktop Navigation */}
         <nav

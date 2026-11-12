@@ -5,10 +5,42 @@ import Link from "next/link";
 import connectDB from "@/lib/mongodb";
 import MenuItem from "@/models/MenuItem";
 
+const siteUrl = (
+  process.env.SITE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
+
 export const metadata = {
-  title: "Restaurant | Lama Valley Resort",
+  title: "Restaurant in Lama, Bandarban | Lama Valley Resort",
   description:
-    "Enjoy delicious local and traditional food at Lama Valley Resort and Restaurant.",
+    "Enjoy delicious local and traditional food at Lama Valley Resort & Restaurant in Lama, Bandarban. Explore our breakfast, lunch, dinner and dessert menus.",
+
+  keywords: [
+    "Restaurant in Lama",
+    "Restaurant in Bandarban",
+    "Lama Valley Restaurant",
+    "Food in Lama Bandarban",
+    "Traditional food in Bandarban",
+    "Resort restaurant in Bangladesh",
+  ],
+
+  alternates: {
+    canonical: `${siteUrl}/restaurant`,
+  },
+
+  openGraph: {
+    title: "Restaurant & Dining | Lama Valley Resort",
+    description:
+      "Discover delicious food, local flavours and a relaxing dining experience at Lama Valley Resort in Lama, Bandarban.",
+    url: `${siteUrl}/restaurant`,
+    siteName: "Lama Valley Resort & Restaurant",
+    type: "website",
+    images: [
+      {
+        url: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0",
+        alt: "Restaurant dining experience at Lama Valley Resort",
+      },
+    ],
+  },
 };
 
 const categories = [

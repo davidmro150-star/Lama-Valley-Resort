@@ -9,6 +9,66 @@ import RestaurantMenuCard from "@/components/website/RestaurantMenuCard";
 
 export const dynamic = "force-dynamic";
 
+
+const siteUrl = (
+  process.env.SITE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
+
+export async function generateMetadata({ params }) {
+  const { category } = await params;
+  const selectedCategory = categories[category];
+
+  if (!selectedCategory) {
+    return {
+      title: "Category Not Found | Lama Valley Resort",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  const title = `${selectedCategory.name} at Lama Valley Resort | Bandarban`;
+
+  const description =
+    `${selectedCategory.description} Enjoy a memorable dining experience at Lama Valley Resort, Lama, Bandarban.`;
+
+  const canonicalUrl = `${siteUrl}/restaurant/${category}`;
+
+  return {
+    title,
+    description,
+
+    keywords: [
+      `${selectedCategory.name} at Lama Valley`,
+      `${selectedCategory.name} in Lama`,
+      "Restaurant in Lama Bandarban",
+      "Lama Valley Restaurant",
+      "Food in Bandarban",
+      "Resort restaurant in Bangladesh",
+    ],
+
+    alternates: {
+      canonical: canonicalUrl,
+    },
+
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      siteName: "Lama Valley Resort & Restaurant",
+      type: "website",
+      images: [
+        {
+          url: selectedCategory.image,
+          alt: `${selectedCategory.name} at Lama Valley Resort`,
+        },
+      ],
+    },
+  };
+}
+
+
 const categories = {
   breakfast: {
     name: "Breakfast",

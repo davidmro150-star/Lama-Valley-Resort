@@ -6,7 +6,7 @@
 ======================================== */
 
 :root {
-  /* Brand */
+  /* Brand - Default values */
   --brand-primary: #234b3b;
   --brand-primary-dark: #173729;
   --brand-primary-light: #426b55;

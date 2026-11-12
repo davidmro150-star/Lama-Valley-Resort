@@ -13,9 +13,23 @@ import Cottage from "@/models/Cottage";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Cottages & Accommodation",
+  title: "Cottages in Lama, Bandarban | Lama Valley Resort",
   description:
-    "Explore cottage accommodation at Lama Valley Resort & Restaurant, Lama, Bandarban.",
+    "Explore comfortable hill cottages at Lama Valley Resort in Bandarban, Bangladesh. Discover accommodation options, cottage facilities, guest capacity and nightly rates.",
+  keywords: [
+    "Cottages in Lama",
+    "Lama Bandarban accommodation",
+    "Bandarban cottage resort",
+    "Hill cottages in Bangladesh",
+    "Lama Valley Resort cottages",
+    "Resort accommodation in Lama",
+  ],
+  openGraph: {
+    title: "Cottages in Lama, Bandarban | Lama Valley Resort",
+    description:
+      "Discover comfortable cottages, beautiful hill surroundings and relaxing accommodation at Lama Valley Resort.",
+    type: "website",
+  },
 };
 
 function formatPrice(price) {

@@ -96,29 +96,35 @@ export default async function Footer() {
           </div>
          
           {/* Social Media */}
-          {activeSocialLinks.length > 0 && (
-            <div className="mt-7">
-              <h3 className="mb-4 text-sm font-semibold text-white">
-                Follow Us
-              </h3>
-
-              <div className="flex flex-wrap items-center gap-3">
-                {activeSocialLinks.map((platform) => (
-                  <a
-                    key={platform.key}
-                    href={settings.socialMedia[platform.key]}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Visit our ${platform.name} page`}
-                    title={platform.name}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-sm font-semibold text-white/75 transition-all hover:border-accent-light hover:bg-accent-light hover:text-[#142b21]"
-                  >
-                    {platform.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+          {activeSocialLinks.map((platform) => (
+            <a
+              key={platform.key}
+              href={settings.socialMedia[platform.key]}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Visit our ${platform.name} page`}
+              title={platform.name}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all ${platform.key === "youtube"
+                  ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
+                  : "border-white/20 text-sm font-semibold text-white/75 hover:border-accent-light hover:bg-accent-light hover:text-[#142b21]"
+                }`}
+            >
+              {platform.key === "youtube" ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  width="21"
+                  height="21"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z" />
+                </svg>
+              ) : (
+                platform.label
+              )}
+            </a>
+          ))}
         </div>
 
         {/* Quick Links */}
