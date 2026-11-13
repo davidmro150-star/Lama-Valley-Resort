@@ -10,10 +10,174 @@ import sendBookingCancellation from "@/lib/sendBookingCancellation";
 import sendBookingRejection from "@/lib/sendBookingRejection";
 
 import Booking from "@/models/booking";
+import RestaurantOrder from "@/models/RestaurantOrder";
+
+// Round money to two decimal places.
+function money(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+// Allocate booking checkout payments to restaurant orders.
+// Booking payments first cover the outstanding cottage balance.
+// Any excess is allocated to restaurant orders without duplicating payments.
+async function synchronizeRestaurantPayments(
+  booking,
+  restaurantOrders,
+  session
+) {
+  const verifiedAdvance =
+    booking.paymentStatus === "verified"
+      ? money(booking.paymentAmount)
+      : 0;
+
+  let remainingCottageBalance = Math.max(
+    0,
+    money(booking.totalPrice) - verifiedAdvance
+  );
+
+  const sortedPayments = [...(booking.payments || [])].sort(
+    (a, b) =>
+      new Date(a.paidAt || 0).getTime() -
+      new Date(b.paidAt || 0).getTime()
+  );
+
+  const sortedOrders = [...restaurantOrders].sort(
+    (a, b) =>
+      new Date(a.createdAt || 0).getTime() -
+      new Date(b.createdAt || 0).getTime()
+  );
+
+  const allocationsByOrder = new Map();
+
+  for (const order of sortedOrders) {
+    allocationsByOrder.set(order._id.toString(), []);
+  }
+
+  // Process booking payments in chronological order.
+  for (const payment of sortedPayments) {
+    let availableAmount = money(payment.amount);
+
+    // First, pay the remaining cottage accommodation balance.
+    const cottageContribution = Math.min(
+      availableAmount,
+      remainingCottageBalance
+    );
+
+    availableAmount = money(
+      availableAmount - cottageContribution
+    );
+
+    remainingCottageBalance = money(
+      remainingCottageBalance - cottageContribution
+    );
+
+    if (availableAmount <= 0) {
+      continue;
+    }
+
+    // Any excess can cover restaurant orders that existed
+    // when the payment was recorded.
+    const paymentDate = new Date(
+      payment.paidAt || booking.createdAt || Date.now()
+    );
+
+    for (const order of sortedOrders) {
+      if (availableAmount <= 0) {
+        break;
+      }
+
+      if (
+        order.orderStatus === "cancelled" ||
+        new Date(order.createdAt).getTime() > paymentDate.getTime()
+      ) {
+        continue;
+      }
+
+      const directPayments = (order.payments || []).reduce(
+        (total, item) => total + money(item.amount),
+        0
+      );
+
+      const currentAllocations =
+        allocationsByOrder.get(order._id.toString()) || [];
+
+      const alreadyAllocated = currentAllocations.reduce(
+        (total, item) => total + money(item.amount),
+        0
+      );
+
+      const orderBalance = Math.max(
+        0,
+        money(
+          money(order.total) -
+            directPayments -
+            alreadyAllocated
+        )
+      );
+
+      if (orderBalance <= 0) {
+        continue;
+      }
+
+      const allocationAmount = Math.min(
+        availableAmount,
+        orderBalance
+      );
+
+      currentAllocations.push({
+        bookingPaymentId: payment._id,
+        amount: money(allocationAmount),
+        allocatedAt: payment.paidAt || new Date(),
+      });
+
+      allocationsByOrder.set(
+        order._id.toString(),
+        currentAllocations
+      );
+
+      availableAmount = money(
+        availableAmount - allocationAmount
+      );
+    }
+  }
+
+  // Save allocation references and synchronize payment statuses.
+  for (const order of restaurantOrders) {
+    const allocations =
+      allocationsByOrder.get(order._id.toString()) || [];
+
+    order.checkoutPaymentAllocations = allocations;
+
+    const directPayments = (order.payments || []).reduce(
+      (total, payment) => total + money(payment.amount),
+      0
+    );
+
+    const checkoutAllocations = allocations.reduce(
+      (total, allocation) =>
+        total + money(allocation.amount),
+      0
+    );
+
+    const orderReceived = money(
+      directPayments + checkoutAllocations
+    );
+
+    if (orderReceived >= money(order.total)) {
+      order.paymentStatus = "paid";
+    } else if (orderReceived > 0) {
+      order.paymentStatus = "partially_paid";
+    } else {
+      order.paymentStatus = "unpaid";
+    }
+
+    await order.save({ session });
+  }
+}
 
 export async function PATCH(request, { params }) {
   try {
-    // 1. Verify administrator authentication
+    // 1. Verify administrator authentication.
     const session = await auth();
 
     if (!session?.user || session.user.role !== "admin") {
@@ -23,7 +187,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 2. Validate booking ID
+    // 2. Validate booking ID.
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -33,7 +197,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 3. Validate request body
+    // 3. Validate request body.
     let body;
 
     try {
@@ -47,7 +211,7 @@ export async function PATCH(request, { params }) {
 
     await connectDB();
 
-    // 4. Find booking
+    // 4. Find booking.
     const existingBooking = await Booking.findById(id);
 
     if (!existingBooking) {
@@ -57,13 +221,389 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 5. Payment verification action
+    // 5. Synchronize existing payments without recording new money.
+    if (body?.action === "sync-restaurant-payments") {
+      const dbSession = await mongoose.startSession();
+
+      let syncResult = null;
+
+      try {
+        await dbSession.withTransaction(async () => {
+          const booking = await Booking.findById(id).session(
+            dbSession
+          );
+
+          if (!booking) {
+            syncResult = {
+              status: 404,
+              data: {
+                success: false,
+                message: "Booking not found.",
+              },
+            };
+
+            return;
+          }
+
+          if (
+            booking.status !== "confirmed" ||
+            booking.paymentStatus !== "verified"
+          ) {
+            syncResult = {
+              status: 409,
+              data: {
+                success: false,
+                message:
+                  "Only confirmed bookings with verified advance payments can be synchronized.",
+              },
+            };
+
+            return;
+          }
+
+          const restaurantOrders = await RestaurantOrder.find({
+            booking: booking._id,
+            orderStatus: { $ne: "cancelled" },
+          })
+            .sort({ createdAt: 1 })
+            .session(dbSession);
+
+          await synchronizeRestaurantPayments(
+            booking,
+            restaurantOrders,
+            dbSession
+          );
+
+          const allocatedTotal = restaurantOrders.reduce(
+            (total, order) =>
+              total +
+              (order.checkoutPaymentAllocations || []).reduce(
+                (sum, allocation) =>
+                  sum + money(allocation.amount),
+                0
+              ),
+            0
+          );
+
+          const paidOrders = restaurantOrders.filter(
+            (order) => order.paymentStatus === "paid"
+          ).length;
+
+          syncResult = {
+            status: 200,
+            data: {
+              success: true,
+              message:
+                "Existing payments synchronized successfully. No new payment was recorded.",
+              restaurantOrdersUpdated: restaurantOrders.length,
+              paidOrders,
+              checkoutAllocations: money(allocatedTotal),
+            },
+          };
+        });
+      } finally {
+        await dbSession.endSession();
+      }
+
+      if (!syncResult) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Unable to synchronize payments.",
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(syncResult.data, {
+        status: syncResult.status,
+      });
+    }
+
+    // 6. Record additional / combined checkout payment.
+    if (body?.action === "record-payment") {
+      const adminId = session.user.id || session.user._id;
+
+      if (!adminId || !mongoose.Types.ObjectId.isValid(adminId)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Your administrator account ID is missing or invalid. Please sign in again.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const amount = Number(body.amount);
+
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        Math.round(amount * 100) !== amount * 100
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Enter a valid payment amount with up to 2 decimal places.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const allowedMethods = ["cash", "bkash", "nagad", "bank"];
+
+      if (!allowedMethods.includes(body.method)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Please select a valid payment method.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const reference =
+        typeof body.reference === "string"
+          ? body.reference.trim()
+          : "";
+
+      const note =
+        typeof body.note === "string"
+          ? body.note.trim()
+          : "";
+
+      if (reference.length > 100 || note.length > 500) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Reference or note is too long.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const dbSession = await mongoose.startSession();
+
+      let paymentResult = null;
+
+      try {
+        await dbSession.withTransaction(async () => {
+          paymentResult = null;
+
+          // Get the latest booking inside the transaction.
+          const booking = await Booking.findById(id).session(
+            dbSession
+          );
+
+          if (!booking) {
+            paymentResult = {
+              status: 404,
+              data: {
+                success: false,
+                message: "Booking not found.",
+              },
+            };
+
+            return;
+          }
+
+          if (
+            booking.status !== "confirmed" ||
+            booking.paymentStatus !== "verified"
+          ) {
+            paymentResult = {
+              status: 409,
+              data: {
+                success: false,
+                message:
+                  "Additional payments can only be recorded for confirmed bookings with verified advance payments.",
+              },
+            };
+
+            return;
+          }
+
+          // Load every non-cancelled restaurant order linked to this booking.
+          const restaurantOrders = await RestaurantOrder.find({
+            booking: booking._id,
+            orderStatus: { $ne: "cancelled" },
+          })
+            .sort({ createdAt: 1 })
+            .session(dbSession);
+
+          const verifiedAdvance = money(
+            booking.paymentAmount
+          );
+
+          const bookingAdditionalPayments = (
+            booking.payments || []
+          ).reduce(
+            (total, payment) =>
+              total + money(payment.amount),
+            0
+          );
+
+          const restaurantTotal = restaurantOrders.reduce(
+            (total, order) =>
+              total + money(order.total),
+            0
+          );
+
+          const restaurantDirectPayments =
+            restaurantOrders.reduce(
+              (total, order) => {
+                const directPayments = (
+                  order.payments || []
+                ).reduce(
+                  (sum, payment) =>
+                    sum + money(payment.amount),
+                  0
+                );
+
+                return total + directPayments;
+              },
+              0
+            );
+
+          const cottageTotal = money(booking.totalPrice);
+
+          const grandTotal = money(
+            cottageTotal + restaurantTotal
+          );
+
+          // Checkout allocations are references to booking payments.
+          // Do not count them again.
+          const totalReceived = money(
+            verifiedAdvance +
+              bookingAdditionalPayments +
+              restaurantDirectPayments
+          );
+
+          const outstandingAmount = Math.max(
+            0,
+            money(grandTotal - totalReceived)
+          );
+
+          if (amount > outstandingAmount) {
+            paymentResult = {
+              status: 400,
+              data: {
+                success: false,
+                message: `The maximum amount you can record is ৳${outstandingAmount.toFixed(2)}.`,
+                outstandingAmount,
+                grandTotal,
+                totalReceived,
+              },
+            };
+
+            return;
+          }
+
+          // Record the payment once in the booking.
+          booking.payments.push({
+            amount,
+            method: body.method,
+            reference,
+            note,
+            paidAt: new Date(),
+            recordedBy: new mongoose.Types.ObjectId(adminId),
+          });
+
+          await booking.save({ session: dbSession });
+
+          // Allocate the booking payments to restaurant orders.
+          await synchronizeRestaurantPayments(
+            booking,
+            restaurantOrders,
+            dbSession
+          );
+
+          const updatedBookingPayments = (
+            booking.payments || []
+          ).reduce(
+            (total, payment) =>
+              total + money(payment.amount),
+            0
+          );
+
+          const updatedTotalReceived = money(
+            verifiedAdvance +
+              updatedBookingPayments +
+              restaurantDirectPayments
+          );
+
+          const remainingBalance = Math.max(
+            0,
+            money(grandTotal - updatedTotalReceived)
+          );
+
+          const allocatedRestaurantPayments =
+            restaurantOrders.reduce(
+              (total, order) => {
+                const allocated = (
+                  order.checkoutPaymentAllocations || []
+                ).reduce(
+                  (sum, allocation) =>
+                    sum + money(allocation.amount),
+                  0
+                );
+
+                return total + allocated;
+              },
+              0
+            );
+
+          paymentResult = {
+            status: 200,
+            data: {
+              success: true,
+              message:
+                "Checkout payment recorded and restaurant payment statuses synchronized successfully.",
+              booking: {
+                id: booking._id.toString(),
+                status: booking.status,
+                cottageTotal,
+                restaurantTotal,
+                grandTotal,
+                totalReceived: updatedTotalReceived,
+                remainingBalance,
+                restaurantDirectPayments,
+                restaurantCheckoutAllocations:
+                  allocatedRestaurantPayments,
+              },
+            },
+          };
+        });
+      } finally {
+        await dbSession.endSession();
+      }
+
+      if (!paymentResult) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Unable to calculate the checkout balance. Please try again.",
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(paymentResult.data, {
+        status: paymentResult.status,
+      });
+    }
+
+    // 7. Payment verification action.
     if (body?.action === "verify-payment") {
       if (existingBooking.status !== "pending") {
         return NextResponse.json(
           {
             success: false,
-            message: "Only pending bookings can have their payment verified.",
+            message:
+              "Only pending bookings can have their payment verified.",
           },
           { status: 409 }
         );
@@ -73,7 +613,8 @@ export async function PATCH(request, { params }) {
         return NextResponse.json(
           {
             success: false,
-            message: "This payment is not awaiting verification.",
+            message:
+              "This payment is not awaiting verification.",
           },
           { status: 409 }
         );
@@ -88,7 +629,8 @@ export async function PATCH(request, { params }) {
         return NextResponse.json(
           {
             success: false,
-            message: "Payment details or screenshot are incomplete.",
+            message:
+              "Payment details or screenshot are incomplete.",
           },
           { status: 400 }
         );
@@ -108,7 +650,6 @@ export async function PATCH(request, { params }) {
         updateFields.paymentVerifiedBy = adminId;
       }
 
-      // Atomic update prevents duplicate verification
       const booking = await Booking.findOneAndUpdate(
         {
           _id: id,
@@ -128,7 +669,8 @@ export async function PATCH(request, { params }) {
         return NextResponse.json(
           {
             success: false,
-            message: "Payment has already been updated. Please refresh.",
+            message:
+              "Payment has already been updated. Please refresh.",
           },
           { status: 409 }
         );
@@ -147,7 +689,7 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // 6. Validate booking status action
+    // 8. Validate booking status action.
     const { status } = body || {};
 
     const allowedStatuses = [
@@ -161,17 +703,18 @@ export async function PATCH(request, { params }) {
       !allowedStatuses.includes(status)
     ) {
       return NextResponse.json(
-        { success: false, message: "Invalid booking action." },
+        {
+          success: false,
+          message: "Invalid booking action.",
+        },
         { status: 400 }
       );
     }
 
-    // 7. Determine required previous booking status
+    // 9. Determine required previous booking status.
     const requiredPreviousStatus =
       status === "cancelled" ? "confirmed" : "pending";
 
-    // IMPORTANT:
-    // A booking cannot be confirmed until payment is verified.
     if (
       status === "confirmed" &&
       existingBooking.paymentStatus !== "verified"
@@ -186,7 +729,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 8. Atomically update booking
+    // 10. Atomically update booking.
     const updateQuery = {
       _id: id,
       status: requiredPreviousStatus,
@@ -218,7 +761,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 9. Send appropriate email
+    // 11. Send appropriate email.
     let emailSent = false;
 
     try {
@@ -248,7 +791,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 10. Prepare response message
+    // 12. Prepare response message.
     let message;
 
     if (status === "confirmed") {
@@ -281,7 +824,8 @@ export async function PATCH(request, { params }) {
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to update booking. Please try again.",
+        message:
+          "Unable to update booking. Please try again.",
       },
       { status: 500 }
     );

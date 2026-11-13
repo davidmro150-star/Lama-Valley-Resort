@@ -15,6 +15,8 @@ import {
   Settings,
   ChevronLeft,
   Mountain,
+  Users,
+  ClipboardList,
 } from "lucide-react";
 
 const navigation = [
@@ -39,15 +41,27 @@ const navigation = [
         available: true,
       },
       {
+        name: "Guest Management",
+        href: "/admin/guests",
+        icon: Users,
+        available: true,
+      },
+      {
         name: "Cottages",
         href: "/admin/rooms",
         icon: House,
         available: true,
       },
       {
-        name: "Restaurant",
+        name: "Restaurant Menu",
         href: "/admin/restaurant",
         icon: UtensilsCrossed,
+        available: true,
+      },
+      {
+        name: "Restaurant Orders",
+        href: "/admin/restaurant/orders",
+        icon: ClipboardList,
         available: true,
       },
       {
@@ -111,7 +125,6 @@ export default function AdminSidebar() {
 
   return (
     <aside className="flex min-h-screen w-[260px] shrink-0 flex-col bg-[#173729] text-white">
-      {/* Brand */}
       <div className="flex h-[82px] items-center justify-between border-b border-white/10 px-6">
         <Link href="/admin/dashboard" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-[#e2c18e]">
@@ -129,7 +142,6 @@ export default function AdminSidebar() {
         </Link>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 space-y-7 overflow-y-auto px-4 py-7">
         {navigation.map((group) => (
           <div key={group.title}>
@@ -140,7 +152,11 @@ export default function AdminSidebar() {
             <div className="space-y-1">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== "/admin" &&
+                    pathname.startsWith(`${item.href}/`));
 
                 return (
                   <div key={item.name}>
@@ -179,7 +195,6 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
-      {/* Sidebar Footer */}
       <div className="border-t border-white/10 p-5">
         <Link
           href="/"

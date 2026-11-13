@@ -1,11 +1,13 @@
 
-import connectDB from "@/lib/mongodb";
+import Link from "next/link";
 
-import BookingActions from "@/components/admin/BookingActions";
+import connectDB from "@/lib/mongodb";
 import Booking from "@/models/booking";
+import Cottage from "@/models/Cottage";
+import BookingActions from "@/components/admin/BookingActions";
 
 export const dynamic = "force-dynamic";
-import PaymentProofViewer from "@/components/admin/PaymentProofViewer";
+
 function formatDate(date) {
   if (!date) return "—";
 
@@ -50,23 +52,13 @@ function StatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-semibold capitalize ring-1 ring-inset ${
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ring-1 ring-inset ${
         styles[status] || "bg-gray-100 text-gray-600 ring-gray-200"
       }`}
     >
       {status || "Unknown"}
     </span>
   );
-}
-
-function formatPaymentMethod(method) {
-  const methods = {
-    bkash: "bKash",
-    nagad: "Nagad",
-    bank: "Bank Transfer",
-  };
-
-  return methods[method] || "—";
 }
 
 export default async function BookingsPage() {
@@ -87,7 +79,6 @@ export default async function BookingsPage() {
         <h2 className="font-semibold text-red-700">
           Unable to load bookings
         </h2>
-
         <p className="mt-2 text-sm text-red-600">
           Please check your database connection and try again.
         </p>
@@ -95,7 +86,6 @@ export default async function BookingsPage() {
     );
   }
 
-  // Booking statistics
   const totalBookings = bookings.length;
 
   const pendingBookings = bookings.filter(
@@ -116,23 +106,30 @@ export default async function BookingsPage() {
     0
   );
 
-  const verifiedPayments = bookings
-    .filter((booking) => booking.paymentStatus === "verified")
-    .reduce(
-      (total, booking) =>
-        total + (Number(booking.paymentAmount) || 0),
-      0
-    );
+  const verifiedPayments = bookings.reduce((total, booking) => {
+    const advance =
+      booking.paymentStatus === "verified"
+        ? Number(booking.paymentAmount) || 0
+        : 0;
+
+    const additional = Array.isArray(booking.payments)
+      ? booking.payments.reduce(
+          (sum, payment) => sum + (Number(payment.amount) || 0),
+          0
+        )
+      : 0;
+
+    return total + advance + additional;
+  }, 0);
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             Booking Management
           </h1>
-
           <p className="mt-1 text-sm text-gray-500">
             Manage reservations, guest details and payments.
           </p>
@@ -144,7 +141,7 @@ export default async function BookingsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard
           title="Total Bookings"
           value={totalBookings}
@@ -172,230 +169,169 @@ export default async function BookingsPage() {
         <SummaryCard
           title="Total Payments Received"
           value={formatPrice(verifiedPayments)}
-          description="Manually verified payments only"
+          description="Recorded payments"
         />
       </div>
 
-      {/* Bookings Table */}
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-4 py-4">
-          <h2 className="text-base font-bold text-gray-900">
-            All Reservations
-          </h2>
+      {/* Reservation List */}
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">
+              All Reservations
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Select a reservation to view complete guest and payment details.
+            </p>
+          </div>
 
-          <p className="mt-1 text-xs text-gray-500">
-            Review guest information, payment details and booking status.
-          </p>
+          <span className="text-xs font-medium text-gray-500">
+            {bookings.length} reservation(s)
+          </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1250px] table-auto text-left text-xs">
-            <colgroup>
-              <col className="w-[12%]" />
-              <col className="w-[10%]" />
-              <col className="w-[9%]" />
-              <col className="w-[4%]" />
-              <col className="w-[7%]" />
-              <col className="w-[7%]" />
-              <col className="w-[7%]" />
-              <col className="w-[14%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-            </colgroup>
+        {bookings.length > 0 ? (
+          <div className="divide-y divide-gray-100">
+            {bookings.map((booking) => {
+              const totalPrice = Number(booking.totalPrice) || 0;
 
-            <thead className="bg-gray-50 text-[10px] uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Guest
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Cottage
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Check-in / Out
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Guests
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Total
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Advance
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Remaining
-                </th>
-                <th className="px-2 py-3 font-semibold">
-                  Payment Details
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Payment
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Booking
-                </th>
-                <th className="whitespace-nowrap px-2 py-3 font-semibold">
-                  Actions
-                </th>
-              </tr>
-            </thead>
+              const verifiedAdvance =
+                booking.paymentStatus === "verified"
+                  ? Number(booking.paymentAmount) || 0
+                  : 0;
 
-            <tbody className="divide-y divide-gray-100">
-              {bookings.length > 0 ? (
-                bookings.map((booking) => {
-                  const totalPrice = Number(booking.totalPrice) || 0;
-
-                  const verifiedAmount =
-                    booking.paymentStatus === "verified"
-                      ? Number(booking.paymentAmount) || 0
-                      : 0;
-
-                  const remaining = Math.max(
-                    totalPrice - verifiedAmount,
+              const additionalPayments = Array.isArray(booking.payments)
+                ? booking.payments.reduce(
+                    (sum, payment) =>
+                      sum + (Number(payment.amount) || 0),
                     0
-                  );
+                  )
+                : 0;
 
-                  return (
-                    <tr
-                      key={booking._id.toString()}
-                      className="transition hover:bg-gray-50/70"
-                    >
-                      {/* Guest */}
-                      <td className="px-2 py-3 align-top">
-                        <p className="font-semibold text-gray-900">
-                          {booking.guestName}
-                        </p>
+              const totalReceived =
+                verifiedAdvance + additionalPayments;
 
-                        <p className="mt-1 max-w-[130px] break-all text-[10px] text-gray-500">
-                          {booking.guestEmail}
-                        </p>
+              const remaining = Math.max(
+                totalPrice - totalReceived,
+                0
+              );
 
-                        <p className="mt-1 text-[10px] text-gray-500">
-                          {booking.guestPhone}
-                        </p>
+              return (
+                <div
+                  key={booking._id.toString()}
+                  className="p-5 transition hover:bg-gray-50/70"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    {/* Guest and Cottage */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-gray-900">
+                          {booking.guestName || "Unknown Guest"}
+                        </h3>
 
-                        <p className="mt-2 break-all text-[10px] font-semibold text-[#234b3b]">
-                          {booking.bookingReference || "No reference"}
-                        </p>
-                      </td>
-
-                      {/* Cottage */}
-                      <td className="px-2 py-3 align-top font-medium text-gray-700">
-                        {booking.cottage?.name || "Cottage unavailable"}
-                      </td>
-
-                      {/* Dates */}
-                      <td className="whitespace-nowrap px-2 py-3 align-top">
-                        <p className="font-medium text-gray-800">
-                          {formatDate(booking.checkIn)}
-                        </p>
-
-                        <p className="mt-1 text-[10px] text-gray-500">
-                          to {formatDate(booking.checkOut)}
-                        </p>
-                      </td>
-
-                      {/* Guests */}
-                      <td className="px-2 py-3 align-top text-gray-700">
-                        {booking.guests}
-                      </td>
-
-                      {/* Total Price */}
-                      <td className="whitespace-nowrap px-2 py-3 align-top font-semibold text-gray-900">
-                        {formatPrice(totalPrice)}
-                      </td>
-
-                      {/* Advance */}
-                      <td className="whitespace-nowrap px-2 py-3 align-top">
-                        <p className="font-semibold text-gray-900">
-                          {formatPrice(booking.paymentAmount)}
-                        </p>
-
-                        <p className="mt-1 text-[10px] text-gray-500">
-                          {booking.advancePercentage || 0}% advance
-                        </p>
-                      </td>
-
-                      {/* Remaining */}
-                      <td className="whitespace-nowrap px-2 py-3 align-top font-semibold text-gray-700">
-                        {formatPrice(remaining)}
-                      </td>
-
-                      {/* Payment Details */}
-                      <td className="px-2 py-3 align-top">
-                        <p className="font-medium text-gray-800">
-                          {formatPaymentMethod(booking.paymentMethod)}
-                        </p>
-
-                        <p className="mt-2 text-[10px] text-gray-500">
-                          Transaction ID
-                        </p>
-
-                        <p className="mt-1 max-w-[110px] break-all text-[10px] font-medium text-gray-700">
-                          {booking.transactionId || "—"}
-                        </p>
-
-                      {booking.paymentProof?.publicId ? (
-  <div>
-    <span className="font-semibold text-green-700">
-      Screenshot uploaded
-    </span>
-
-    <PaymentProofViewer
-      bookingId={booking._id.toString()}
-    />
-  </div>
-) : (
-  <p className="mt-2 text-[10px] text-gray-400">
-    No screenshot
-  </p>
-)}
-                      </td>
-
-                      {/* Payment Status */}
-                      <td className="px-2 py-3 align-top">
-                        <StatusBadge status={booking.paymentStatus} />
-                      </td>
-
-                      {/* Booking Status */}
-                      <td className="px-2 py-3 align-top">
                         <StatusBadge status={booking.status} />
-                      </td>
+                      </div>
 
-                   {/* Actions */}
-<td className="px-2 py-3 align-top">
-  <BookingActions
-    bookingId={booking._id.toString()}
-    status={booking.status}
-    paymentStatus={booking.paymentStatus}
-  />
-</td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center">
-                    <p className="font-semibold text-gray-700">
-                      No bookings found
-                    </p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {booking.guestPhone || "No phone number"}
+                      </p>
 
-                    <p className="mt-1 text-xs text-gray-500">
-                      New reservations will appear here.
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-600">
+                        <span>
+                          <span className="font-semibold text-gray-800">
+                            Cottage:
+                          </span>{" "}
+                          {booking.cottage?.name || "Unavailable"}
+                        </span>
 
-        <div className="border-t border-gray-100 px-4 py-3">
-          <p className="text-[10px] text-gray-400">
-            Showing {bookings.length} reservation(s). Scroll horizontally
-            when necessary.
+                        <span>
+                          <span className="font-semibold text-gray-800">
+                            Guests:
+                          </span>{" "}
+                          {booking.guests || 0}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 break-all text-xs font-semibold text-[#234b3b]">
+                        {booking.bookingReference || "No reference"}
+                      </p>
+                    </div>
+
+                    {/* Stay Dates */}
+                    <div className="min-w-[170px]">
+                      <p className="text-xs font-medium text-gray-400">
+                        CHECK-IN
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-gray-800">
+                        {formatDate(booking.checkIn)}
+                      </p>
+
+                      <p className="mt-2 text-xs font-medium text-gray-400">
+                        CHECK-OUT
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-gray-800">
+                        {formatDate(booking.checkOut)}
+                      </p>
+                    </div>
+
+                    {/* Financial Summary */}
+                    <div className="min-w-[150px]">
+                      <p className="text-xs text-gray-400">
+                        TOTAL BOOKING
+                      </p>
+                      <p className="mt-1 text-lg font-bold text-gray-900">
+                        {formatPrice(totalPrice)}
+                      </p>
+
+                      <p className="mt-2 text-xs text-gray-500">
+                        Received: {formatPrice(totalReceived)}
+                      </p>
+
+                      <p className="mt-1 text-xs font-semibold text-amber-700">
+                        Remaining: {formatPrice(remaining)}
+                      </p>
+                    </div>
+
+                    {/* Payment Status */}
+                    <div className="flex flex-col items-start gap-2 lg:min-w-[115px]">
+                      <p className="text-xs text-gray-400">PAYMENT</p>
+                      <StatusBadge status={booking.paymentStatus} />
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      <Link
+                        href={`/admin/bookings/${booking._id.toString()}`}
+                        className="inline-flex items-center justify-center rounded-lg border border-[#234b3b] px-3 py-2 text-xs font-semibold text-[#234b3b] transition hover:bg-[#234b3b] hover:text-white"
+                      >
+                        View Details →
+                      </Link>
+
+                      <BookingActions
+                        bookingId={booking._id.toString()}
+                        status={booking.status}
+                        paymentStatus={booking.paymentStatus}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="px-5 py-16 text-center">
+            <h3 className="font-semibold text-gray-700">
+              No bookings found
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              New reservations will appear here.
+            </p>
+          </div>
+        )}
+
+        <div className="border-t border-gray-100 px-5 py-3">
+          <p className="text-xs text-gray-400">
+            Showing {bookings.length} reservation(s).
           </p>
         </div>
       </div>

@@ -59,7 +59,6 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // Advance payment information
     advancePercentage: {
       type: Number,
       enum: [30, 50],
@@ -82,7 +81,6 @@ const bookingSchema = new mongoose.Schema(
       maxlength: 100,
     },
 
-    // Store private Cloudinary asset information, not a public image URL
     paymentProof: {
       publicId: {
         type: String,
@@ -140,10 +138,53 @@ const bookingSchema = new mongoose.Schema(
       ],
       default: "pending",
     },
+
+    // Additional payments recorded by the resort admin
+    payments: [
+      {
+        amount: {
+          type: Number,
+          required: true,
+          min: 1,
+        },
+
+        method: {
+          type: String,
+          enum: ["cash", "bkash", "nagad", "bank"],
+          required: true,
+        },
+
+        reference: {
+          type: String,
+          trim: true,
+          maxlength: 100,
+          default: "",
+        },
+
+        note: {
+          type: String,
+          trim: true,
+          maxlength: 500,
+          default: "",
+        },
+
+        paidAt: {
+          type: Date,
+          default: Date.now,
+        },
+
+        recordedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
 
+// Generate a unique booking reference
 bookingSchema.pre("validate", function () {
   if (!this.bookingReference) {
     const year = new Date().getFullYear();
@@ -153,6 +194,7 @@ bookingSchema.pre("validate", function () {
   }
 });
 
+// Booking indexes
 bookingSchema.index({
   cottage: 1,
   status: 1,
@@ -166,10 +208,38 @@ bookingSchema.index({
   status: 1,
 });
 
+// Check whether an already compiled model has the latest schema fields
+const existingBookingModel = mongoose.models.Booking;
+
+const existingPaymentStatus = existingBookingModel?.schema
+  .path("paymentStatus")
+  ?.enumValues;
+
+const existingPaymentsSchema = existingBookingModel?.schema
+  .path("payments")
+  ?.schema;
+
+const hasSubmittedPaymentStatus =
+  existingPaymentStatus?.includes("submitted");
+
+const hasRecordedByField =
+  existingPaymentsSchema?.path("recordedBy") !== undefined;
+
+const hasPaymentAmountField =
+  existingPaymentsSchema?.path("amount") !== undefined;
+
+// Recompile the model if the cached schema is outdated
+if (
+  existingBookingModel &&
+  (!hasSubmittedPaymentStatus ||
+    !hasRecordedByField ||
+    !hasPaymentAmountField)
+) {
+  mongoose.deleteModel("Booking");
+}
+
 const Booking =
-  mongoose.models.Booking &&
-  !mongoose.models.Booking.schema.path("paymentStatus").enumValues.includes("submitted")
-    ? (mongoose.deleteModel("Booking"), mongoose.model("Booking", bookingSchema))
-    : mongoose.models.Booking || mongoose.model("Booking", bookingSchema);
+  mongoose.models.Booking ||
+  mongoose.model("Booking", bookingSchema);
 
 export default Booking;
