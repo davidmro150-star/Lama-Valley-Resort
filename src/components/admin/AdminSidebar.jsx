@@ -17,6 +17,7 @@ import {
   Mountain,
   Users,
   ClipboardList,
+  ClipboardPlus,
 } from "lucide-react";
 
 const navigation = [
@@ -38,6 +39,13 @@ const navigation = [
         name: "Bookings",
         href: "/admin/bookings",
         icon: CalendarDays,
+        available: true,
+      },
+
+      {
+        name: "Front Desk Booking",
+        href: "/admin/front-desk-bookings",
+        icon: ClipboardPlus,
         available: true,
       },
       {

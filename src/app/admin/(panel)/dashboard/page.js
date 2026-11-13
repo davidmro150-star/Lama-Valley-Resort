@@ -1,5 +1,12 @@
 
 import Link from "next/link";
+import connectDB from "@/lib/mongodb";
+
+import Booking from "@/models/booking";
+import Cottage from "@/models/Cottage";
+import RestaurantOrder from "@/models/RestaurantOrder";
+import DashboardAnalytics from "@/components/admin/DashboardAnalytics";
+
 import {
   CalendarDays,
   Clock3,
@@ -12,64 +19,43 @@ import {
   Images,
   Package,
   TrendingUp,
+  ClipboardPlus,
   Users,
 } from "lucide-react";
 
-const stats = [
-  {
-    title: "Total Bookings",
-    value: "2",
-    description: "All reservations received",
-    icon: CalendarDays,
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
-  },
-  {
-    title: "Pending Bookings",
-    value: "2",
-    description: "Awaiting confirmation",
-    icon: Clock3,
-    iconBg: "bg-amber-50",
-    iconColor: "text-amber-600",
-  },
-  {
-    title: "Confirmed Bookings",
-    value: "0",
-    description: "Successfully confirmed",
-    icon: CheckCircle2,
-    iconBg: "bg-emerald-50",
-    iconColor: "text-emerald-600",
-  },
-  {
-    title: "Total Revenue",
-    value: "৳0",
-    description: "From paid reservations",
-    icon: Banknote,
-    iconBg: "bg-purple-50",
-    iconColor: "text-purple-600",
-  },
-];
+function money(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
 
-const recentBookings = [
-  {
-    id: "DEMO-001",
-    guest: "David Mro",
-    email: "davidmro150@gmail.com",
-    cottage: "Cottage reservation",
-    date: "Nov 05 – Nov 07, 2026",
-    amount: "৳10,000",
-    status: "Pending",
-  },
-  {
-    id: "DEMO-002",
-    guest: "David Mro",
-    email: "davidmro150@gmail.com",
-    cottage: "Cottage reservation",
-    date: "Nov 04 – Nov 05, 2026",
-    amount: "৳5,000",
-    status: "Pending",
-  },
-];
+function formatMoney(value) {
+  return `৳${money(value).toLocaleString("en-BD")}`;
+}
+
+function formatDate(date) {
+  if (!date) return "Date unavailable";
+
+  return new Date(date).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Dhaka",
+  });
+}
+
+function getStatusStyle(status) {
+  switch (status) {
+    case "confirmed":
+      return "bg-emerald-50 text-emerald-700";
+    case "pending":
+      return "bg-amber-50 text-amber-700";
+    case "rejected":
+      return "bg-red-50 text-red-700";
+    case "cancelled":
+      return "bg-gray-100 text-gray-600";
+    default:
+      return "bg-gray-100 text-gray-600";
+  }
+}
 
 const quickActions = [
   {
@@ -77,6 +63,12 @@ const quickActions = [
     description: "Review and manage guest reservations",
     icon: CalendarDays,
     href: "/admin/bookings",
+  },
+  {
+    title: "Front Desk Booking",
+    description: "Create reservations for walk-in guests",
+    icon: ClipboardPlus,
+    href: "/admin/front-desk-bookings",
   },
   {
     title: "Manage Cottages",
@@ -89,6 +81,12 @@ const quickActions = [
     description: "Manage dining information and menu",
     icon: UtensilsCrossed,
     href: "/admin/restaurant",
+  },
+  {
+    title: "Guest Management",
+    description: "View and manage resort guests",
+    icon: Users,
+    href: "/admin/guests",
   },
   {
     title: "Gallery",
@@ -134,7 +132,153 @@ function StatCard({ item }) {
   );
 }
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  await connectDB();
+
+  // Fetch actual booking and restaurant payment records.
+  const [bookings, restaurantOrders] = await Promise.all([
+    Booking.find({})
+      .populate("cottage", "name")
+      .sort({ createdAt: -1 })
+      .lean(),
+
+    RestaurantOrder.find({
+      orderStatus: { $ne: "cancelled" },
+    })
+      .select("booking payments total")
+      .lean(),
+  ]);
+
+  // Group restaurant orders by booking.
+  const restaurantPaymentsByBooking = new Map();
+
+  for (const order of restaurantOrders) {
+    const bookingId = order.booking?.toString();
+
+    if (!bookingId) continue;
+
+    const directPayments = (order.payments || []).reduce(
+      (total, payment) => total + money(payment.amount),
+      0
+    );
+
+    restaurantPaymentsByBooking.set(
+      bookingId,
+      money(
+        (restaurantPaymentsByBooking.get(bookingId) || 0) +
+          directPayments
+      )
+    );
+  }
+
+  let totalRevenue = 0;
+  let paidBookings = 0;
+  let unpaidBookings = 0;
+
+  const activeBookings = bookings.filter(
+    (booking) =>
+      !["cancelled", "rejected"].includes(booking.status)
+  );
+
+  for (const booking of bookings) {
+    // Only verified online advances count as received.
+    const verifiedAdvance =
+      booking.paymentStatus === "verified"
+        ? money(booking.paymentAmount)
+        : 0;
+
+    // Additional payments recorded by an administrator.
+    const additionalPayments = (booking.payments || []).reduce(
+      (total, payment) => total + money(payment.amount),
+      0
+    );
+
+    // Direct restaurant payments only.
+    // Checkout allocations are references to booking payments
+    // and must not be counted a second time.
+    const restaurantDirectPayments =
+      restaurantPaymentsByBooking.get(
+        booking._id.toString()
+      ) || 0;
+
+    totalRevenue = money(
+      totalRevenue +
+        verifiedAdvance +
+        additionalPayments +
+        restaurantDirectPayments
+    );
+  }
+
+  // Paid/unpaid booking counts are based on cottage accommodation.
+  for (const booking of activeBookings) {
+    const verifiedAdvance =
+      booking.paymentStatus === "verified"
+        ? money(booking.paymentAmount)
+        : 0;
+
+    const additionalPayments = (booking.payments || []).reduce(
+      (total, payment) => total + money(payment.amount),
+      0
+    );
+
+    const accommodationReceived = money(
+      verifiedAdvance + additionalPayments
+    );
+
+    if (accommodationReceived >= money(booking.totalPrice)) {
+      paidBookings += 1;
+    } else {
+      unpaidBookings += 1;
+    }
+  }
+
+  const totalBookings = bookings.length;
+
+  const pendingBookings = bookings.filter(
+    (booking) => booking.status === "pending"
+  ).length;
+
+  const confirmedBookings = bookings.filter(
+    (booking) => booking.status === "confirmed"
+  ).length;
+
+  const stats = [
+    {
+      title: "Total Bookings",
+      value: totalBookings.toString(),
+      description: "All reservations received",
+      icon: CalendarDays,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+    },
+    {
+      title: "Pending Bookings",
+      value: pendingBookings.toString(),
+      description: "Awaiting confirmation",
+      icon: Clock3,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-600",
+    },
+    {
+      title: "Confirmed Bookings",
+      value: confirmedBookings.toString(),
+      description: "Successfully confirmed",
+      icon: CheckCircle2,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+    },
+    {
+      title: "Total Revenue",
+      value: formatMoney(totalRevenue),
+      description: "Actual recorded payments",
+      icon: Banknote,
+      iconBg: "bg-purple-50",
+      iconColor: "text-purple-600",
+    },
+  ];
+
+  const recentBookings = bookings.slice(0, 5);
+
   return (
     <div className="mx-auto max-w-[1500px] space-y-8">
       {/* Page Heading */}
@@ -155,7 +299,11 @@ export default function AdminDashboardPage() {
 
         <div className="flex items-center gap-2 rounded-lg border border-[#eeece4] bg-white px-4 py-2.5 text-xs text-[#777d73]">
           <CalendarDays size={15} />
-          November 2026
+          {new Date().toLocaleDateString("en-GB", {
+            month: "long",
+            year: "numeric",
+            timeZone: "Asia/Dhaka",
+          })}
         </div>
       </div>
 
@@ -167,7 +315,7 @@ export default function AdminDashboardPage() {
           </h2>
 
           <span className="text-xs text-[#92998f]">
-            Booking summary
+            Live booking summary
           </span>
         </div>
 
@@ -177,7 +325,9 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       </section>
-
+{/* Dashboard Analytics */}
+<DashboardAnalytics />
+      
       {/* Booking and Revenue Section */}
       <section className="grid gap-5 xl:grid-cols-3">
         {/* Recent Bookings */}
@@ -209,6 +359,7 @@ export default function AdminDashboardPage() {
                   <th className="px-5 py-4">Guest</th>
                   <th className="px-5 py-4">Stay</th>
                   <th className="px-5 py-4">Amount</th>
+                  <th className="px-5 py-4">Source</th>
                   <th className="px-5 py-4">Status</th>
                 </tr>
               </thead>
@@ -216,40 +367,64 @@ export default function AdminDashboardPage() {
               <tbody>
                 {recentBookings.map((booking) => (
                   <tr
-                    key={booking.id}
+                    key={booking._id.toString()}
                     className="border-t border-[#f0efe9]"
                   >
                     <td className="px-5 py-4">
                       <p className="text-sm font-medium text-[#303a32]">
-                        {booking.guest}
+                        {booking.guestName}
                       </p>
 
                       <p className="mt-1 text-xs text-[#92998f]">
-                        {booking.email}
+                        {booking.guestPhone}
                       </p>
                     </td>
 
                     <td className="px-5 py-4">
                       <p className="text-xs font-medium text-[#303a32]">
-                        {booking.cottage}
+                        {booking.cottage?.name || "Cottage"}
                       </p>
 
                       <p className="mt-1 text-xs text-[#92998f]">
-                        {booking.date}
+                        {formatDate(booking.checkIn)} –{" "}
+                        {formatDate(booking.checkOut)}
                       </p>
                     </td>
 
                     <td className="px-5 py-4 text-sm font-semibold text-[#303a32]">
-                      {booking.amount}
+                      {formatMoney(booking.totalPrice)}
                     </td>
 
                     <td className="px-5 py-4">
-                      <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-medium text-amber-700">
+                      <span className="rounded-full bg-[#edf2ed] px-2.5 py-1 text-[10px] font-medium text-[#426b55]">
+                        {booking.bookingSource === "front_desk"
+                          ? "Front Desk"
+                          : "Online"}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span
+                        className={`rounded-full px-3 py-1.5 text-[11px] font-medium capitalize ${getStatusStyle(
+                          booking.status
+                        )}`}
+                      >
                         {booking.status}
                       </span>
                     </td>
                   </tr>
                 ))}
+
+                {recentBookings.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-5 py-10 text-center text-sm text-[#92998f]"
+                    >
+                      No bookings have been received yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -274,7 +449,7 @@ export default function AdminDashboardPage() {
               </p>
 
               <h2 className="mt-3 font-serif text-3xl font-semibold">
-                ৳0
+                {formatMoney(totalRevenue)}
               </h2>
             </div>
 
@@ -284,23 +459,23 @@ export default function AdminDashboardPage() {
           </div>
 
           <p className="mt-2 text-xs text-white/50">
-            Collected payment total
+            Total actual payments collected
           </p>
 
           <div className="mt-8 border-t border-white/15 pt-5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/60">Paid bookings</span>
-              <span className="font-semibold">0</span>
+              <span className="font-semibold">{paidBookings}</span>
             </div>
 
             <div className="mt-4 flex items-center justify-between text-sm">
               <span className="text-white/60">Unpaid bookings</span>
-              <span className="font-semibold">2</span>
+              <span className="font-semibold">{unpaidBookings}</span>
             </div>
 
             <p className="mt-6 rounded-lg bg-white/10 px-3 py-3 text-xs leading-5 text-white/65">
-              Revenue will be calculated from actual payment records
-              once the dashboard is connected to MongoDB.
+              Revenue includes verified online advances, additional
+              booking payments and direct restaurant payments.
             </p>
           </div>
         </div>

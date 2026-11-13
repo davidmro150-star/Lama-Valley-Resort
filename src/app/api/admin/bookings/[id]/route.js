@@ -10,6 +10,7 @@ import sendBookingCancellation from "@/lib/sendBookingCancellation";
 import sendBookingRejection from "@/lib/sendBookingRejection";
 
 import Booking from "@/models/booking";
+import Cottage from "@/models/Cottage";
 import RestaurantOrder from "@/models/RestaurantOrder";
 
 // Round money to two decimal places.
@@ -245,16 +246,21 @@ export async function PATCH(request, { params }) {
             return;
           }
 
+          // Confirmed front-desk bookings do not need
+          // an online advance payment to synchronize payments.
           if (
             booking.status !== "confirmed" ||
-            booking.paymentStatus !== "verified"
+            (
+              booking.bookingSource !== "front_desk" &&
+              booking.paymentStatus !== "verified"
+            )
           ) {
             syncResult = {
               status: 409,
               data: {
                 success: false,
                 message:
-                  "Only confirmed bookings with verified advance payments can be synchronized.",
+                  "Only confirmed front-desk bookings or confirmed bookings with verified online advances can be synchronized.",
               },
             };
 
@@ -409,16 +415,21 @@ export async function PATCH(request, { params }) {
             return;
           }
 
+          // Front-desk bookings can receive payments when confirmed.
+          // Online bookings still require a verified advance payment.
           if (
             booking.status !== "confirmed" ||
-            booking.paymentStatus !== "verified"
+            (
+              booking.bookingSource !== "front_desk" &&
+              booking.paymentStatus !== "verified"
+            )
           ) {
             paymentResult = {
               status: 409,
               data: {
                 success: false,
                 message:
-                  "Additional payments can only be recorded for confirmed bookings with verified advance payments.",
+                  "Additional payments can only be recorded for confirmed front-desk bookings or confirmed bookings with verified online advances.",
               },
             };
 
@@ -433,9 +444,11 @@ export async function PATCH(request, { params }) {
             .sort({ createdAt: 1 })
             .session(dbSession);
 
-          const verifiedAdvance = money(
-            booking.paymentAmount
-          );
+          // Only count an advance payment after it has been verified.
+          const verifiedAdvance =
+            booking.paymentStatus === "verified"
+              ? money(booking.paymentAmount)
+              : 0;
 
           const bookingAdditionalPayments = (
             booking.payments || []

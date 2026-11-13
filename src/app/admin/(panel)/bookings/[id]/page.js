@@ -1,4 +1,4 @@
-
+import Cottage from "@/models/Cottage"; 
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
@@ -926,15 +926,18 @@ export default async function BookingDetailsPage({ params }) {
                 </div>
 
                 <div className="mt-4">
-                  <RecordPayment
-                    bookingId={booking._id.toString()}
-                    outstandingAmount={remaining}
-                    canRecord={
-                      booking.status === "confirmed" &&
-                      booking.paymentStatus === "verified" &&
-                      remaining > 0
-                    }
-                  />
+           <RecordPayment
+  bookingId={booking._id.toString()}
+  outstandingAmount={remaining}
+  canRecord={
+    booking.status === "confirmed" &&
+    (
+      booking.bookingSource === "front_desk" ||
+      booking.paymentStatus === "verified"
+    ) &&
+    remaining > 0
+  }
+/>
                 </div>
               </>
             )}

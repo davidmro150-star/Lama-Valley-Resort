@@ -131,7 +131,11 @@ export default async function RoomsPage() {
                   </th>
                   <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     Status
-                  </th>
+                    </th>
+                    
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Actions
+                   </th>
                 </tr>
               </thead>
 
@@ -175,9 +179,18 @@ export default async function RoomsPage() {
                       {cottage.capacity} guests
                     </td>
 
-                    <td className="px-6 py-5">
-                      <StatusBadge isActive={cottage.isActive} />
-                    </td>
+                  <td className="px-6 py-5">
+     <StatusBadge isActive={cottage.isActive} />
+     </td>
+
+     <td className="px-6 py-5">
+      <Link
+    href={`/admin/rooms/${cottage._id}`}
+    className="inline-flex items-center rounded-lg border border-[#234b3b] px-4 py-2 text-sm font-medium text-[#234b3b] transition hover:bg-[#234b3b] hover:text-white"
+    >
+    Edit
+    </Link>
+     </td> 
                   </tr>
                 ))}
               </tbody>
