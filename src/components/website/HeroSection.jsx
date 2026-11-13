@@ -17,7 +17,7 @@ const defaultContent = {
   heroDescription:
     "Step away from the everyday and discover the natural beauty of Lama, Bandarban. A place to slow down, reconnect and experience the hills.",
   primaryButtonText: "Book Your Stay",
-  primaryButtonLink: "/booking",
+  primaryButtonLink: "/stays",
   secondaryButtonText: "Explore the Resort",
   secondaryButtonLink: "/about",
   heroSlides: [
@@ -57,6 +57,7 @@ export default function HeroSection() {
           setContent({
             ...defaultContent,
             ...data.homePage,
+            primaryButtonLink: "/stays",
           });
         }
       } catch (error) {
@@ -135,7 +136,7 @@ export default function HeroSection() {
 
           <div className="flex flex-col gap-4 sm:flex-row">
             <Link
-              href={content.primaryButtonLink || "/booking"}
+              href={content.primaryButtonLink || "/stays"}
               className="btn inline-flex min-h-14 bg-accent px-7 text-primary-dark hover:bg-accent-light"
             >
               {content.primaryButtonText}

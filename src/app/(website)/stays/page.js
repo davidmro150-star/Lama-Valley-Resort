@@ -100,124 +100,133 @@ export default async function StaysPage() {
               <h3 className="text-xl font-semibold text-primary-dark">
                 No cottages available
               </h3>
+
               <p className="mt-2 text-sm text-muted">
                 Please check back later for accommodation updates.
               </p>
             </div>
           ) : (
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {cottages.map((cottage) => (
-                <article
-                  key={cottage._id.toString()}
-                  className="overflow-hidden rounded-xl border border-border bg-surface transition-shadow duration-300 hover:shadow-soft"
-                >
-                  {/* Main Image */}
-                  <div className="group relative aspect-[4/3] bg-gray-100">
-                    {cottage.images?.[0] ? (
-                      <Image
-                        src={cottage.images[0]}
-                        alt={cottage.name}
-                        fill
-                        unoptimized
-                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        className="object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-sm text-gray-400">
-                        No image available
-                      </div>
-                    )}
-                  </div>
+              {cottages.map((cottage) => {
+                const cottageUrl = `/stays/${cottage.slug}`;
 
-                  {/* Cottage Information */}
-                  <div className="p-4">
-                    <h3 className="mb-3 font-display text-2xl text-primary-dark">
-                      {cottage.name}
-                    </h3>
-
-                    <p className="mb-6 text-sm leading-7 text-muted">
-                      {cottage.description}
-                    </p>
-
-                    {/* Specifications */}
-                    <div className="grid grid-cols-2 gap-4 border-y border-border py-5">
-                      <div className="flex items-center gap-2 text-sm text-muted">
-                        <Users size={17} className="text-primary" />
-                        {cottage.capacity} Persons
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm text-muted">
-                        <span className="text-xs text-gray-500">
-                          {cottage.images?.length || 0} Photos
-                        </span>
-                      </div>
+                return (
+                  <article
+                    key={cottage._id.toString()}
+                    className="overflow-hidden rounded-xl border border-border bg-surface transition-shadow duration-300 hover:shadow-soft"
+                  >
+                    {/* Main Image */}
+                    <div className="group relative aspect-[4/3] bg-gray-100">
+                      {cottage.images?.[0] ? (
+                        <Image
+                          src={cottage.images[0]}
+                          alt={cottage.name}
+                          fill
+                          unoptimized
+                          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-gray-400">
+                          No image available
+                        </div>
+                      )}
                     </div>
 
-                    {/* Stay Schedule */}
-                    <div className="my-5 rounded-lg border border-[#e8d6b8] bg-[#fff8eb] p-4">
-                      <div className="mb-3 flex items-center gap-2">
-                        <Clock size={17} className="text-[#9a692c]" />
-                        <h4 className="text-sm font-semibold text-[#76501f]">
-                          Stay Schedule
-                        </h4>
-                      </div>
+                    {/* Cottage Information */}
+                    <div className="p-4">
+                      <h3 className="mb-3 font-display text-2xl text-primary-dark">
+                        {cottage.name}
+                      </h3>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-md bg-[#f5e6c9] p-3">
-                          <p className="mb-1 text-xs font-medium text-[#76501f]">
-                            Check-in
-                          </p>
-                          <p className="text-base font-bold text-[#76501f]">
-                            01:00 PM
-                          </p>
+                      <p className="mb-6 text-sm leading-7 text-muted">
+                        {cottage.description}
+                      </p>
+
+                      {/* Specifications */}
+                      <div className="grid grid-cols-2 gap-4 border-y border-border py-5">
+                        <div className="flex items-center gap-2 text-sm text-muted">
+                          <Users size={17} className="text-primary" />
+                          {cottage.capacity} Persons
                         </div>
 
-                        <div className="rounded-md bg-[#e8f0eb] p-3">
-                          <p className="mb-1 text-xs font-medium text-[#234b3b]">
-                            Check-out
-                          </p>
-                          <p className="text-base font-bold text-[#234b3b]">
-                            11:00 AM
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Price and Actions */}
-                    <div className="border-t border-border pt-5">
-                      <div className="mb-5">
-                        <p className="text-xs text-muted">
-                          Starting from
-                        </p>
-
-                        <p className="text-xl font-semibold text-primary-dark">
-                          ৳{formatPrice(cottage.price)}
-                          <span className="text-xs font-normal text-muted">
-                            {" "}/ night
+                        <div className="flex items-center gap-2 text-sm text-muted">
+                          <span className="text-xs text-gray-500">
+                            {cottage.images?.length || 0} Photos
                           </span>
-                        </p>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`/stays/${cottage.slug}`}
-                          className="btn btn-outline flex-1 px-3"
-                        >
-                          View Details
-                        </Link>
+                      {/* Stay Schedule */}
+                      <div className="my-5 rounded-lg border border-[#e8d6b8] bg-[#fff8eb] p-4">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Clock size={17} className="text-[#9a692c]" />
 
-                        <Link
-                          href={`/booking?cottage=${cottage.slug}`}
-                          className="btn btn-primary flex-1 px-3"
-                        >
-                          Book Now
-                          <ArrowUpRight size={16} />
-                        </Link>
+                          <h4 className="text-sm font-semibold text-[#76501f]">
+                            Stay Schedule
+                          </h4>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-md bg-[#f5e6c9] p-3">
+                            <p className="mb-1 text-xs font-medium text-[#76501f]">
+                              Check-in
+                            </p>
+
+                            <p className="text-base font-bold text-[#76501f]">
+                              01:00 PM
+                            </p>
+                          </div>
+
+                          <div className="rounded-md bg-[#e8f0eb] p-3">
+                            <p className="mb-1 text-xs font-medium text-[#234b3b]">
+                              Check-out
+                            </p>
+
+                            <p className="text-base font-bold text-[#234b3b]">
+                              11:00 AM
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Price and Actions */}
+                      <div className="border-t border-border pt-5">
+                        <div className="mb-5">
+                          <p className="text-xs text-muted">
+                            Starting from
+                          </p>
+
+                          <p className="text-xl font-semibold text-primary-dark">
+                            ৳{formatPrice(cottage.price)}
+
+                            <span className="text-xs font-normal text-muted">
+                              {" "}/ night
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={cottageUrl}
+                            className="btn btn-outline flex-1 px-3"
+                          >
+                            View Details
+                          </Link>
+
+                          <Link
+                            href={cottageUrl}
+                            className="btn btn-primary flex-1 px-3"
+                          >
+                            Book Now
+                            <ArrowUpRight size={16} />
+                          </Link>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>

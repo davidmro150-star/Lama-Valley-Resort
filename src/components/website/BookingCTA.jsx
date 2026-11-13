@@ -25,7 +25,7 @@ export default function BookingCTA() {
 
         <div className="flex flex-col justify-center gap-4 sm:flex-row">
           <Link
-            href="/booking"
+            href="/stays"
             className="btn inline-flex bg-accent px-8 text-primary-dark hover:bg-accent-light"
           >
             Book Your Stay

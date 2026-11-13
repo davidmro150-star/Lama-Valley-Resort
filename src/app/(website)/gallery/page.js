@@ -218,7 +218,7 @@ export default async function GalleryPage() {
         </p>
 
         <a
-          href="/booking"
+          href="/stays"
           className="mt-8 inline-flex rounded-full bg-[#c49a62] px-8 py-4 text-sm font-semibold text-white transition hover:bg-[#a9804d]"
         >
           Book Your Stay

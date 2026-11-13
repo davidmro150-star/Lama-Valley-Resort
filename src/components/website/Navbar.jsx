@@ -43,7 +43,7 @@ export default function Navbar({ logoUrl = "", logoAlt = "" }) {
 
         {/* Desktop Booking Button */}
         <Link
-          href="/booking"
+          href="/stays"
           className="btn btn-primary hidden lg:inline-flex"
         >
           Book Your Stay
@@ -85,7 +85,7 @@ export default function Navbar({ logoUrl = "", logoAlt = "" }) {
             ))}
 
             <Link
-              href="/booking"
+              href="/stays"
               onClick={() => setMenuOpen(false)}
               className="btn btn-primary mt-3 w-full"
             >

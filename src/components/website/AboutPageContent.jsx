@@ -57,7 +57,7 @@ const defaultContent = {
   ctaDescription:
     "Explore our accommodation and dining options and get in touch to plan your visit to Lama, Bandarban.",
   ctaPrimaryText: "Book Your Stay",
-  ctaPrimaryLink: "/booking",
+  ctaPrimaryLink: "/stays",
   ctaSecondaryText: "Contact Us",
   ctaSecondaryLink: "/contact",
 };
@@ -329,8 +329,9 @@ export default function AboutPageContent() {
           </p>
 
           <div className="flex flex-col justify-center gap-4 sm:flex-row">
+            {/* Always send guests to the stays page */}
             <Link
-              href={content.ctaPrimaryLink || "/booking"}
+              href="/stays"
               className="btn bg-accent px-8 text-primary-dark hover:bg-accent-light"
             >
               {content.ctaPrimaryText}

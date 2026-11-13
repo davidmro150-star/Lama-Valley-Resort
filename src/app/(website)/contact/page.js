@@ -284,7 +284,7 @@ export default function ContactPage() {
           </p>
 
           <Link
-            href="/booking"
+            href="/stays"
             className="mt-8 inline-flex items-center gap-3 rounded-full bg-[#c49a62] px-8 py-4 font-semibold text-white transition hover:bg-[#a9804d]"
           >
             Book Your Stay
