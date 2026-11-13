@@ -12,6 +12,14 @@ const bookingSchema = new mongoose.Schema(
       uppercase: true,
     },
 
+    // Booking source: online customer or resort front desk
+    bookingSource: {
+      type: String,
+      enum: ["online", "front_desk"],
+      default: "online",
+      required: true,
+    },
+
     cottage: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Cottage",
@@ -24,11 +32,12 @@ const bookingSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Optional for front desk bookings
     guestEmail: {
       type: String,
-      required: true,
       trim: true,
       lowercase: true,
+      default: "",
     },
 
     guestPhone: {
@@ -59,6 +68,7 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // Required for online booking; not required for front desk booking
     advancePercentage: {
       type: Number,
       enum: [30, 50],
@@ -70,6 +80,7 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // Original online advance payment method
     paymentMethod: {
       type: String,
       enum: ["bkash", "nagad", "bank"],
@@ -139,7 +150,7 @@ const bookingSchema = new mongoose.Schema(
       default: "pending",
     },
 
-    // Additional payments recorded by the resort admin
+    // All additional payments actually received by the resort admin
     payments: [
       {
         amount: {
@@ -208,7 +219,12 @@ bookingSchema.index({
   status: 1,
 });
 
-// Check whether an already compiled model has the latest schema fields
+bookingSchema.index({
+  bookingSource: 1,
+  createdAt: -1,
+});
+
+// Check whether an already compiled model has the latest schema
 const existingBookingModel = mongoose.models.Booking;
 
 const existingPaymentStatus = existingBookingModel?.schema
@@ -228,12 +244,20 @@ const hasRecordedByField =
 const hasPaymentAmountField =
   existingPaymentsSchema?.path("amount") !== undefined;
 
-// Recompile the model if the cached schema is outdated
+const hasBookingSourceField =
+  existingBookingModel?.schema.path("bookingSource") !== undefined;
+
+const guestEmailIsOptional =
+  existingBookingModel?.schema.path("guestEmail")?.isRequired === false;
+
+// Recompile the model if its cached schema is outdated
 if (
   existingBookingModel &&
   (!hasSubmittedPaymentStatus ||
     !hasRecordedByField ||
-    !hasPaymentAmountField)
+    !hasPaymentAmountField ||
+    !hasBookingSourceField ||
+    !guestEmailIsOptional)
 ) {
   mongoose.deleteModel("Booking");
 }
