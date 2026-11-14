@@ -194,7 +194,7 @@ export default async function PackagesPage() {
                       </p>
 
                       <Link
-                        href="/booking"
+                        href="/stays"
                         className="mt-6 flex w-full items-center justify-center rounded-full bg-[#234b3b] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#173729]"
                       >
                         Book Your Stay
