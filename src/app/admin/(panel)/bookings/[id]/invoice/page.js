@@ -9,6 +9,7 @@ import RestaurantOrder from "@/models/RestaurantOrder";
 import SiteSettings from "@/models/SiteSettings";
 
 import InvoicePrintButton from "@/components/admin/InvoicePrintButton";
+import InvoiceAutoPrint from "@/components/admin/InvoiceAutoPrint";
 
 export const dynamic = "force-dynamic";
 
@@ -71,8 +72,14 @@ function SummaryRow({ label, value, strong = false }) {
   );
 }
 
-export default async function BookingInvoicePage({ params }) {
+export default async function BookingInvoicePage({
+  params,
+  searchParams,
+}) {
   const { id } = await params;
+  const query = await searchParams;
+
+  const shouldAutoPrint = query?.print === "true";
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
     notFound();
@@ -243,6 +250,8 @@ export default async function BookingInvoicePage({ params }) {
         "--invoice-accent": accentColor,
       }}
     >
+      {shouldAutoPrint && <InvoiceAutoPrint />}
+
       <style>{`
         @page {
           margin: 0;
@@ -252,57 +261,58 @@ export default async function BookingInvoicePage({ params }) {
           box-sizing: border-box;
           overflow-wrap: anywhere;
         }
-      @media print {
-    @page {
-  size: 80mm 400mm;
-  margin: 0;
-    }
 
-  html,
-  body {
-    width: 80mm !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
+        @media print {
+          @page {
+            size: 80mm 400mm;
+            margin: 0;
+          }
 
-  body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+          html,
+          body {
+            width: 80mm !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+          }
 
-  .no-print {
-    display: none !important;
-  }
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
 
-  .invoice-sheet {
-    box-sizing: border-box !important;
-    display: block !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
-    min-height: 0 !important;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 3mm !important;
-    border: 0 !important;
-    box-shadow: none !important;
-    overflow: visible !important;
-    break-after: auto !important;
-    page-break-after: auto !important;
-  }
+          .no-print {
+            display: none !important;
+          }
 
-  .invoice-section,
-  .invoice-table tr {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
+          .invoice-sheet {
+            box-sizing: border-box !important;
+            display: block !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            min-height: 0 !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 3mm !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            break-after: auto !important;
+            page-break-after: auto !important;
+          }
 
-  img {
-    max-width: 100% !important;
-  }
-}
+          .invoice-section,
+          .invoice-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          img {
+            max-width: 100% !important;
+          }
+        }
       `}</style>
 
       {/* Print button */}
@@ -316,7 +326,8 @@ export default async function BookingInvoicePage({ params }) {
       {/* 80mm Receipt */}
       <article className="invoice-sheet mx-auto w-full max-w-[80mm] bg-white px-4 py-5 shadow-xl">
         {/* Resort header */}
-        <header className="border-b-2 pb-4 text-center"
+        <header
+          className="border-b-2 pb-4 text-center"
           style={{ borderColor: "var(--invoice-primary)" }}
         >
           {logoUrl && (

@@ -2,17 +2,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 export default function GuestCheckoutButton({
   bookingId,
   canCheckout,
 }) {
-  const router = useRouter();
-
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   async function handleCheckout() {
@@ -25,7 +21,6 @@ export default function GuestCheckoutButton({
     if (!confirmed) return;
 
     setLoading(true);
-    setMessage("");
     setError("");
 
     try {
@@ -47,12 +42,10 @@ export default function GuestCheckoutButton({
         );
       }
 
-      setMessage(data.message || "Guest checkout completed.");
-
-      router.refresh();
+      // Open the invoice after successful checkout.
+      window.location.href = `/admin/bookings/${bookingId}/invoice?print=true`;
     } catch (err) {
       setError(err.message || "Something went wrong.");
-    } finally {
       setLoading(false);
     }
   }
@@ -79,12 +72,6 @@ export default function GuestCheckoutButton({
       {error && (
         <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
           {error}
-        </div>
-      )}
-
-      {message && (
-        <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-          {message}
         </div>
       )}
 

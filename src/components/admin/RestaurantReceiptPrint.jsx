@@ -103,7 +103,7 @@ export default function RestaurantReceiptPrint({ order, settings }) {
     <main className="min-h-screen bg-[#f3f4f1] px-4 py-8">
       <div className="restaurant-order-screen mx-auto mb-6 flex max-w-3xl flex-wrap items-center justify-between gap-3">
         <Link
-          href="/admin/restaurant-orders"
+          href="/admin/restaurant/orders"
           className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
         >
           <ArrowLeft size={16} />

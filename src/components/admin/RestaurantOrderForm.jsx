@@ -57,9 +57,13 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
 
   const [orderType, setOrderType] = useState("walk-in");
   const [bookingId, setBookingId] = useState("");
+
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
+
+  const [cottagePaymentChoice, setCottagePaymentChoice] =
+    useState("cottage_bill");
 
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
@@ -83,7 +87,6 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
   const [success, setSuccess] = useState("");
   const [paymentRecoveryUrl, setPaymentRecoveryUrl] = useState("");
 
-  // Load cottage guests for the selected Bangladesh calendar date.
   useEffect(() => {
     let cancelled = false;
 
@@ -157,6 +160,9 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
   const safeDiscount = Math.max(0, Number(discount) || 0);
   const billBeforeDiscount = subtotal + extraChargesTotal;
   const total = Math.max(0, billBeforeDiscount - safeDiscount);
+
+  const isImmediatePayment =
+    orderType === "walk-in" || cottagePaymentChoice === "pay_now";
 
   function addExtraCharge() {
     const name =
@@ -233,6 +239,7 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
     setPaymentMethod("cash");
     setPaymentReference("");
     setPaymentNote("");
+    setCottagePaymentChoice("cottage_bill");
 
     setError("");
     setSuccess("");
@@ -291,7 +298,7 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
     let createdOrderNumber = "";
 
     try {
-      // STEP 1: Save the restaurant order.
+      // STEP 1: Create the restaurant order.
       const response = await fetch("/api/admin/restaurant-orders", {
         method: "POST",
         headers: {
@@ -301,23 +308,18 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
           orderType,
           bookingId:
             orderType === "cottage" ? bookingId : undefined,
-
           selectedDate:
             orderType === "cottage" ? selectedDate : undefined,
-
           items: cartItems.map((item) => ({
             menuItemId: item.id,
             quantity: item.quantity,
           })),
-
           extraCharges,
           discount: safeDiscount,
-
-          // Walk-in: full payment recorded immediately after creation.
-          // Cottage: add the order to the guest's cottage bill.
           paymentMode:
-            orderType === "cottage" ? "cottage_bill" : "pay_now",
-
+            orderType === "walk-in"
+              ? "pay_now"
+              : cottagePaymentChoice,
           guestName: guestName.trim(),
           guestPhone: guestPhone.trim(),
           note: note.trim(),
@@ -333,58 +335,58 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
       createdOrderId = data.order._id;
       createdOrderNumber = data.order.orderNumber || "";
 
-      // STEP 2: Record the complete walk-in payment.
-      if (orderType === "walk-in") {
-        const paymentResponse = await fetch(
-          `/api/admin/restaurant-orders/${createdOrderId}/payments`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              method: paymentMethod,
-              reference: paymentReference.trim(),
-              note: paymentNote.trim(),
-            }),
-          }
-        );
-
-        const paymentData = await paymentResponse.json();
-
-        if (!paymentResponse.ok || !paymentData.success) {
-          setSuccess(
-            `Order ${createdOrderNumber} was created, but payment was not recorded.`
-          );
-
-          setPaymentRecoveryUrl(
-            `/admin/restaurant/orders/${createdOrderId}`
-          );
-
-          throw new Error(
-            paymentData.message ||
-            "Order created, but payment recording failed. Open Order Details and complete payment recording before printing a paid receipt."
-          );
-        }
+      // STEP 2: Cottage bill orders are saved without immediate payment.
+      // Use a full browser navigation to avoid client-side routing issues.
+      if (
+        orderType === "cottage" &&
+        cottagePaymentChoice === "cottage_bill"
+      ) {
+        window.location.href = "/admin/restaurant/orders";
+        return;
       }
 
-      // STEP 3: Open the dedicated receipt page.
-      // The receipt page must exist before this workflow can be tested.
-      router.push(
-        `/admin/restaurant/orders/${createdOrderId}/receipt`
+      // STEP 3: Record the full payment for pay_now orders.
+      const paymentResponse = await fetch(
+        `/api/admin/restaurant-orders/${createdOrderId}/payments`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            method: paymentMethod,
+            reference: paymentReference.trim(),
+            note: paymentNote.trim(),
+          }),
+        }
       );
 
-      router.refresh();
+      const paymentData = await paymentResponse.json();
+
+      if (!paymentResponse.ok || !paymentData.success) {
+        setPaymentRecoveryUrl(
+          `/admin/restaurant/orders/${createdOrderId}`
+        );
+
+        throw new Error(
+          `Order ${createdOrderNumber} was created, but payment was not recorded. ${paymentData.message ||
+          "Please complete payment recording from Order Details."
+          }`
+        );
+      }
+
+      // STEP 4: Open the separate paid restaurant receipt.
+      window.location.href =
+        `/admin/restaurant/orders/${createdOrderId}/receipt`;
     } catch (err) {
       setError(err.message || "Something went wrong.");
 
-      // Keep the saved order accessible if payment recording failed.
-      if (createdOrderId && !paymentRecoveryUrl) {
+      if (createdOrderId && isImmediatePayment) {
         setPaymentRecoveryUrl(
           `/admin/restaurant/orders/${createdOrderId}`
         );
       }
-    } finally {
+
       setLoading(false);
     }
   }
@@ -597,9 +599,7 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.id, 1)}
-                    disabled={
-                      loading || (cart[item.id] || 0) >= 100
-                    }
+                    disabled={loading || (cart[item.id] || 0) >= 100}
                     className="h-9 w-9 rounded-lg border border-gray-300 text-lg disabled:opacity-30"
                     aria-label={`Increase ${item.name}`}
                   >
@@ -618,21 +618,80 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
           Payment & Discount
         </h2>
 
+        {orderType === "cottage" && (
+          <div className="mt-4 space-y-3">
+            <h3 className="text-sm font-bold text-gray-900">
+              Cottage Guest Payment Option
+            </h3>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-4 transition hover:bg-gray-50">
+              <input
+                type="radio"
+                name="cottagePaymentChoice"
+                value="pay_now"
+                checked={cottagePaymentChoice === "pay_now"}
+                onChange={() => setCottagePaymentChoice("pay_now")}
+                disabled={loading}
+                className="mt-1 accent-[#234b3b]"
+              />
+
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">
+                  Pay Now
+                </span>
+
+                <span className="mt-1 block text-xs leading-5 text-gray-500">
+                  Collect the full restaurant payment now and print a
+                  separate restaurant receipt. This payment will not be
+                  charged again at accommodation checkout.
+                </span>
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-4 transition hover:bg-gray-50">
+              <input
+                type="radio"
+                name="cottagePaymentChoice"
+                value="cottage_bill"
+                checked={cottagePaymentChoice === "cottage_bill"}
+                onChange={() => setCottagePaymentChoice("cottage_bill")}
+                disabled={loading}
+                className="mt-1 accent-[#234b3b]"
+              />
+
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">
+                  Add to Cottage Bill
+                </span>
+
+                <span className="mt-1 block text-xs leading-5 text-gray-500">
+                  Add the restaurant charges to the guest's accommodation
+                  bill for payment at final checkout.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+
         <div className="mt-4 rounded-xl border border-[#234b3b]/15 bg-[#234b3b]/5 p-4">
           <p className="text-sm font-semibold text-[#234b3b]">
             {orderType === "walk-in"
               ? "Immediate Full Payment"
-              : "Add to Cottage Bill"}
+              : cottagePaymentChoice === "pay_now"
+                ? "Immediate Restaurant Payment"
+                : "Add to Cottage Bill"}
           </p>
 
           <p className="mt-1 text-sm leading-6 text-gray-600">
             {orderType === "walk-in"
               ? "Record the customer's full restaurant payment before opening the receipt."
-              : "This restaurant bill will be added to the selected guest's accommodation bill and settled during checkout."}
+              : cottagePaymentChoice === "pay_now"
+                ? "Collect the full restaurant payment separately. This order will not be charged again at accommodation checkout."
+                : "The complete restaurant order will be added to the guest's cottage bill and settled at final checkout."}
           </p>
         </div>
 
-        {orderType === "walk-in" && (
+        {isImmediatePayment && (
           <div className="mt-4 space-y-4 rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900">
               Payment Information
@@ -645,9 +704,7 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
 
               <select
                 value={paymentMethod}
-                onChange={(event) =>
-                  setPaymentMethod(event.target.value)
-                }
+                onChange={(event) => setPaymentMethod(event.target.value)}
                 disabled={loading}
                 required
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
@@ -685,9 +742,7 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
 
               <textarea
                 value={paymentNote}
-                onChange={(event) =>
-                  setPaymentNote(event.target.value)
-                }
+                onChange={(event) => setPaymentNote(event.target.value)}
                 disabled={loading}
                 maxLength={500}
                 rows={2}
@@ -734,9 +789,7 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
 
               <select
                 value={chargeType}
-                onChange={(event) =>
-                  setChargeType(event.target.value)
-                }
+                onChange={(event) => setChargeType(event.target.value)}
                 disabled={loading}
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
               >
@@ -765,9 +818,7 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
                 min="0.01"
                 step="0.01"
                 value={chargeAmount}
-                onChange={(event) =>
-                  setChargeAmount(event.target.value)
-                }
+                onChange={(event) => setChargeAmount(event.target.value)}
                 disabled={loading}
                 placeholder="Enter amount"
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
@@ -932,18 +983,22 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
       >
         {loading ? (
           "Processing Order..."
-        ) : (
+        ) : isImmediatePayment ? (
           <>
             <Printer size={18} />
             Create Order & Print Receipt
           </>
+        ) : (
+          "Add Order to Cottage Bill"
         )}
       </button>
 
       <p className="text-center text-xs leading-5 text-gray-500">
         {orderType === "walk-in"
-          ? "The full payment will be recorded before the receipt is opened."
-          : "The order will be added to the guest's cottage bill and settled during checkout."}
+          ? "The full payment will be recorded before the receipt is opened automatically."
+          : cottagePaymentChoice === "pay_now"
+            ? "The full restaurant payment will be recorded separately and a restaurant receipt will open automatically."
+            : "The restaurant order will be added to the guest's accommodation bill and settled at checkout."}
       </p>
     </form>
   );

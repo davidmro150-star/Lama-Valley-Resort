@@ -1,4 +1,5 @@
-
+import "@/models/booking";
+import "@/models/Cottage";
 import { notFound } from "next/navigation";
 import mongoose from "mongoose";
 

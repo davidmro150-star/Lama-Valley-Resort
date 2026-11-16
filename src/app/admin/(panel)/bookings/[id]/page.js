@@ -395,13 +395,30 @@ export default async function BookingDetailsPage({ params }) {
 
           {/* INVOICE BUTTON + GUEST ACCOUNT STATUS */}
           <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={`/admin/bookings/${booking._id.toString()}/invoice`}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#234b3b] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173729] focus:outline-none focus:ring-2 focus:ring-[#234b3b] focus:ring-offset-2"
-            >
-              <Receipt size={17} />
-              View Invoice
-            </Link>
+       <Link
+  href={`/admin/bookings/${booking._id.toString()}/invoice`}
+  style={{
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    backgroundColor: "#234b3b",
+    color: "#ffffff",
+    padding: "12px 18px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    fontWeight: 700,
+    fontFamily: "Arial, Helvetica, sans-serif",
+    opacity: 1,
+    filter: "none",
+    transform: "none",
+    textShadow: "none",
+    WebkitFontSmoothing: "auto",
+  }}
+    >
+  <Receipt size={17} />
+  View Invoice
+    </Link> 
 
             <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
               {isFullyPaid ? (

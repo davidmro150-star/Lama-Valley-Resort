@@ -145,19 +145,19 @@ export async function POST(request) {
       );
     }
 
-    if (
-      (orderType === "walk-in" && paymentMode !== "pay_now") ||
-      (orderType === "cottage" && paymentMode !== "cottage_bill")
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Walk-in orders must use direct payment. Cottage orders must be added to the cottage bill.",
-        },
-        { status: 400 }
-      );
-    }
+if (
+  (orderType === "walk-in" && paymentMode !== "pay_now") ||
+  (orderType === "cottage" &&
+    !["pay_now", "cottage_bill"].includes(paymentMode))
+) {
+  return NextResponse.json(
+    {
+      success: false,
+      message: "Invalid payment option for this order type.",
+    },
+    { status: 400 }
+  );
+}
 
     if (
       typeof guestName !== "string" ||
