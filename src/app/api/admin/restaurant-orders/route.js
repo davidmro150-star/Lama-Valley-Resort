@@ -25,7 +25,6 @@ async function verifyAdmin() {
   return session;
 }
 
-// Validate a date and get its Bangladesh calendar-day boundaries.
 function getDhakaDateRange(dateString) {
   if (
     typeof dateString !== "string" ||
@@ -112,6 +111,13 @@ export async function POST(request) {
 
     const body = await request.json();
 
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid order information." },
+        { status: 400 }
+      );
+    }
+
     const {
       orderType,
       bookingId,
@@ -125,7 +131,6 @@ export async function POST(request) {
       note = "",
     } = body;
 
-    // Validate order type
     if (!["walk-in", "cottage"].includes(orderType)) {
       return NextResponse.json(
         { success: false, message: "Invalid order type." },
@@ -133,7 +138,6 @@ export async function POST(request) {
       );
     }
 
-    // Validate payment mode
     if (!["pay_now", "cottage_bill"].includes(paymentMode)) {
       return NextResponse.json(
         { success: false, message: "Invalid payment mode." },
@@ -141,12 +145,30 @@ export async function POST(request) {
       );
     }
 
-    if (orderType === "walk-in" && paymentMode !== "pay_now") {
+    if (
+      (orderType === "walk-in" && paymentMode !== "pay_now") ||
+      (orderType === "cottage" && paymentMode !== "cottage_bill")
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Walk-in orders must use pay now.",
+          message:
+            "Walk-in orders must use direct payment. Cottage orders must be added to the cottage bill.",
         },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof guestName !== "string" ||
+      guestName.length > 100 ||
+      typeof guestPhone !== "string" ||
+      guestPhone.length > 30 ||
+      typeof note !== "string" ||
+      note.length > 500
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Invalid customer or order details." },
         { status: 400 }
       );
     }
@@ -186,25 +208,18 @@ export async function POST(request) {
       );
     }
 
-    if (
-      typeof guestName !== "string" ||
-      guestName.length > 100 ||
-      typeof guestPhone !== "string" ||
-      guestPhone.length > 30 ||
-      typeof note !== "string" ||
-      note.length > 500
-    ) {
-      return NextResponse.json(
-        { success: false, message: "Invalid customer or order details." },
-        { status: 400 }
-      );
-    }
-
-    // Separate website menu items and custom items
+    // Separate menu items and custom items.
     const menuQuantities = new Map();
     const customItems = [];
 
     for (const item of items) {
+      if (!item || typeof item !== "object") {
+        return NextResponse.json(
+          { success: false, message: "Invalid food item." },
+          { status: 400 }
+        );
+      }
+
       const itemType = item.itemType || "menu";
       const quantity = Number(item.quantity);
 
@@ -273,16 +288,14 @@ export async function POST(request) {
       }
     }
 
-    const totalItemCount = menuQuantities.size + customItems.length;
-
-    if (totalItemCount > 50) {
+    if (menuQuantities.size + customItems.length > 50) {
       return NextResponse.json(
         { success: false, message: "Too many food items." },
         { status: 400 }
       );
     }
 
-    // Fetch actual menu prices from database
+    // Fetch actual menu prices from the database.
     const menuIds = [...menuQuantities.keys()];
 
     const menuDocuments = menuIds.length
@@ -322,15 +335,21 @@ export async function POST(request) {
 
     const orderItems = [...menuItems, ...customItems];
 
-    // Calculate food subtotal
     const subtotal = roundMoney(
       orderItems.reduce((sum, item) => sum + item.lineTotal, 0)
     );
 
-    // Validate and calculate additional charges
+    // Validate additional charges.
     const safeExtraCharges = [];
 
     for (const charge of extraCharges) {
+      if (!charge || typeof charge !== "object") {
+        return NextResponse.json(
+          { success: false, message: "Invalid additional charge." },
+          { status: 400 }
+        );
+      }
+
       const name =
         typeof charge.name === "string" ? charge.name.trim() : "";
       const amount = Number(charge.amount);
@@ -361,7 +380,6 @@ export async function POST(request) {
       safeExtraCharges.reduce((sum, charge) => sum + charge.amount, 0)
     );
 
-    // Calculate final bill
     const safeDiscount = roundMoney(discount);
     const totalBeforeDiscount = roundMoney(
       subtotal + extraChargesTotal
@@ -389,7 +407,7 @@ export async function POST(request) {
       );
     }
 
-    // Validate cottage guest booking against the selected Dhaka date
+    // Validate cottage guest booking.
     let booking = null;
     let cottage = null;
     let finalGuestName = guestName.trim();
@@ -423,9 +441,7 @@ export async function POST(request) {
         status: "confirmed",
         checkIn: { $lt: dateRange.end },
         checkOut: { $gte: dateRange.start },
-      }).select(
-        "bookingReference guestName guestPhone cottage"
-      );
+      }).select("bookingReference guestName guestPhone cottage");
 
       if (!booking) {
         return NextResponse.json(
@@ -451,28 +467,25 @@ export async function POST(request) {
       finalGuestPhone = booking.guestPhone || finalGuestPhone;
     }
 
-    // Create order
+    // New orders always start unpaid.
+    // No payment amount or partial payment is recorded here.
     const order = await RestaurantOrder.create({
       orderType,
       booking: booking?._id || null,
       cottage: cottage?._id || null,
-
       guestName: finalGuestName,
       guestPhone: finalGuestPhone,
-
       items: orderItems,
-
       subtotal,
       extraCharges: safeExtraCharges,
       extraChargesTotal,
-
       discount: safeDiscount,
       total,
-
       paymentMode,
       paymentStatus: "unpaid",
+      payments: [],
+      checkoutPaymentAllocations: [],
       orderStatus: "open",
-
       note: note.trim(),
       createdBy: adminId,
     });

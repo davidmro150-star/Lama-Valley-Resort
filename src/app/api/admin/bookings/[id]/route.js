@@ -164,13 +164,11 @@ async function synchronizeRestaurantPayments(
       directPayments + checkoutAllocations
     );
 
-    if (orderReceived >= money(order.total)) {
-      order.paymentStatus = "paid";
-    } else if (orderReceived > 0) {
-      order.paymentStatus = "partially_paid";
-    } else {
-      order.paymentStatus = "unpaid";
-    }
+     if (orderReceived >= money(order.total)) {
+     order.paymentStatus = "paid";
+     } else {
+        order.paymentStatus = "unpaid";
+      }
 
     await order.save({ session });
   }

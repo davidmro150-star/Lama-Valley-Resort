@@ -13,13 +13,17 @@ export default async function AdminPanelLayout({ children }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f7f5ef]">
-      <AdminSidebar />
+    <div className="admin-layout flex min-h-screen bg-[#f7f5ef]">
+      <div className="admin-sidebar">
+        <AdminSidebar />
+      </div>
 
-      <div className="min-w-0 flex-1">
-        <AdminHeader />
+      <div className="admin-content min-w-0 flex-1">
+        <div className="admin-header">
+          <AdminHeader />
+        </div>
 
-        <main className="min-h-[calc(100vh-82px)] p-5 sm:p-8">
+        <main className="admin-main min-h-[calc(100vh-82px)] p-5 sm:p-8">
           {children}
         </main>
       </div>

@@ -42,7 +42,6 @@ const restaurantOrderSchema = new mongoose.Schema(
       default: "",
     },
 
-    // Food items: website menu or manually added items
     items: [
       {
         itemType: {
@@ -83,14 +82,12 @@ const restaurantOrderSchema = new mongoose.Schema(
       },
     ],
 
-    // Food items subtotal
     subtotal: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Additional charges
     extraCharges: [
       {
         name: {
@@ -132,13 +129,16 @@ const restaurantOrderSchema = new mongoose.Schema(
       required: true,
     },
 
+    // New orders use only unpaid or paid.
+    // Historical partially_paid records are preserved in the database.
     paymentStatus: {
       type: String,
       enum: ["unpaid", "partially_paid", "paid"],
       default: "unpaid",
     },
 
-    // Payments received directly for this restaurant order.
+    // Keep payment records for financial history and auditing.
+    // New pay_now orders receive one full payment record.
     payments: [
       {
         amount: {
@@ -180,8 +180,8 @@ const restaurantOrderSchema = new mongoose.Schema(
       },
     ],
 
-    // Allocations from payments recorded against the linked booking.
-    // These are references to existing booking payments, NOT new payments.
+    // References to existing booking payments.
+    // These are not new payments.
     checkoutPaymentAllocations: [
       {
         bookingPaymentId: {
@@ -237,7 +237,7 @@ restaurantOrderSchema.index({ createdAt: -1 });
 restaurantOrderSchema.index({ orderStatus: 1, createdAt: -1 });
 restaurantOrderSchema.index({ booking: 1, createdAt: -1 });
 restaurantOrderSchema.index({ paymentStatus: 1, createdAt: -1 });
-// Recompile the model if the cached schema is outdated.
+
 if (
   mongoose.models.RestaurantOrder &&
   !mongoose.models.RestaurantOrder.schema.path(

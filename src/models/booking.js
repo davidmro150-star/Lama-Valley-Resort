@@ -150,6 +150,22 @@ const bookingSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    // Guest checkout tracking
+    checkoutStatus: {
+      type: String,
+      enum: ["not_checked_out", "checked_out"],
+      default: "not_checked_out",
+    },
+
+    checkedOutAt: {
+      type: Date,
+    },
+
+    checkedOutBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
     // All additional payments actually received by the resort admin
     payments: [
       {
@@ -247,6 +263,15 @@ const hasPaymentAmountField =
 const hasBookingSourceField =
   existingBookingModel?.schema.path("bookingSource") !== undefined;
 
+const hasCheckoutStatusField =
+  existingBookingModel?.schema.path("checkoutStatus") !== undefined;
+
+const hasCheckedOutAtField =
+  existingBookingModel?.schema.path("checkedOutAt") !== undefined;
+
+const hasCheckedOutByField =
+  existingBookingModel?.schema.path("checkedOutBy") !== undefined;
+
 const guestEmailIsOptional =
   existingBookingModel?.schema.path("guestEmail")?.isRequired === false;
 
@@ -257,6 +282,9 @@ if (
     !hasRecordedByField ||
     !hasPaymentAmountField ||
     !hasBookingSourceField ||
+    !hasCheckoutStatusField ||
+    !hasCheckedOutAtField ||
+    !hasCheckedOutByField ||
     !guestEmailIsOptional)
 ) {
   mongoose.deleteModel("Booking");

@@ -28,8 +28,15 @@ function StatusBadge({ status }) {
     completed: "bg-green-50 text-green-700",
     cancelled: "bg-red-50 text-red-700",
     unpaid: "bg-red-50 text-red-700",
-    partially_paid: "bg-amber-50 text-amber-700",
     paid: "bg-green-50 text-green-700",
+  };
+
+  const label = {
+    open: "Open",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    unpaid: "Unpaid",
+    paid: "Paid",
   };
 
   return (
@@ -38,7 +45,7 @@ function StatusBadge({ status }) {
         styles[status] || "bg-gray-100 text-gray-600"
       }`}
     >
-      {status?.replaceAll("_", " ") || "Unknown"}
+      {label[status] || "Unknown"}
     </span>
   );
 }
@@ -60,14 +67,21 @@ export default async function RestaurantOrdersPage() {
 
   const totalOrders = orders.length;
 
-  const totalSales = orders
-    .filter((order) => order.orderStatus !== "cancelled")
-    .reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const activeOrders = orders.filter(
+    (order) => order.orderStatus !== "cancelled"
+  );
 
-  const unpaidOrders = orders.filter(
-    (order) =>
-      order.orderStatus !== "cancelled" &&
-      order.paymentStatus !== "paid"
+  const totalOrderValue = activeOrders.reduce(
+    (sum, order) => sum + Number(order.total || 0),
+    0
+  );
+
+  const paidOrders = activeOrders.filter(
+    (order) => order.paymentStatus === "paid"
+  ).length;
+
+  const unpaidOrders = activeOrders.filter(
+    (order) => order.paymentStatus !== "paid"
   ).length;
 
   const walkInOrders = orders.filter(
@@ -87,19 +101,44 @@ export default async function RestaurantOrdersPage() {
           </p>
         </div>
 
-        <Link
-          href="/admin/restaurant/orders/new"
-          className="inline-flex items-center justify-center rounded-xl bg-[#234b3b] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#173729]"
-        >
-          + Create New Order
-        </Link>
+   <Link
+     href="/admin/restaurant/orders/new"
+     style={{
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#234b3b",
+    color: "#ffffff",
+    padding: "12px 20px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    fontWeight: 700,
+    fontFamily: "Arial, Helvetica, sans-serif",
+    opacity: 1,
+    filter: "none",
+    transform: "none",
+    textShadow: "none",
+    WebkitFontSmoothing: "auto",
+    }}
+     
+>
+  + Create New Order
+</Link>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SummaryCard title="Total Orders" value={totalOrders} />
-        <SummaryCard title="Recorded Order Value" value={formatMoney(totalSales)} />
+
+        <SummaryCard
+          title="Recorded Order Value"
+          value={formatMoney(totalOrderValue)}
+        />
+
+        <SummaryCard title="Paid Orders" value={paidOrders} />
+
         <SummaryCard title="Unpaid Orders" value={unpaidOrders} />
+
         <SummaryCard title="Walk-in Orders" value={walkInOrders} />
       </div>
 
@@ -107,6 +146,7 @@ export default async function RestaurantOrdersPage() {
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-5 py-4">
           <h2 className="font-bold text-gray-900">Recent Orders</h2>
+
           <p className="mt-1 text-xs text-gray-500">
             Showing the latest {orders.length} orders.
           </p>
@@ -117,6 +157,7 @@ export default async function RestaurantOrdersPage() {
             <p className="font-semibold text-gray-800">
               No restaurant orders yet
             </p>
+
             <p className="mt-2 text-sm text-gray-500">
               Create your first order to start recording restaurant sales.
             </p>
@@ -133,6 +174,7 @@ export default async function RestaurantOrdersPage() {
                     <p className="font-bold text-gray-900">
                       {order.orderNumber}
                     </p>
+
                     <p className="mt-1 text-xs text-gray-500">
                       {formatDate(order.createdAt)}
                     </p>
@@ -140,16 +182,22 @@ export default async function RestaurantOrdersPage() {
 
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge status={order.orderStatus} />
-                    <StatusBadge status={order.paymentStatus} />
+                    <StatusBadge
+                      status={
+                        order.paymentStatus === "paid" ? "paid" : "unpaid"
+                      }
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
                   <div>
                     <p className="text-xs text-gray-400">Customer</p>
+
                     <p className="mt-1 font-medium text-gray-800">
                       {order.guestName || "Walk-in customer"}
                     </p>
+
                     <p className="text-xs text-gray-500">
                       {order.orderType === "cottage"
                         ? `Cottage: ${order.cottage?.name || "N/A"}`
@@ -159,9 +207,11 @@ export default async function RestaurantOrdersPage() {
 
                   <div>
                     <p className="text-xs text-gray-400">Food Items</p>
+
                     <p className="mt-1 font-medium text-gray-800">
                       {order.items?.length || 0} different items
                     </p>
+
                     <p className="text-xs text-gray-500">
                       {order.items?.reduce(
                         (sum, item) => sum + Number(item.quantity || 0),
@@ -173,13 +223,15 @@ export default async function RestaurantOrdersPage() {
 
                   <div>
                     <p className="text-xs text-gray-400">Order Total</p>
+
                     <p className="mt-1 text-lg font-bold text-[#234b3b]">
                       {formatMoney(order.total)}
                     </p>
+
                     <p className="text-xs text-gray-500">
                       {order.paymentMode === "cottage_bill"
-                        ? "Add to cottage bill"
-                        : "Pay immediately"}
+                        ? "Added to cottage bill"
+                        : "Direct payment"}
                     </p>
                   </div>
                 </div>

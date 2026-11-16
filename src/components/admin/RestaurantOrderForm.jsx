@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Printer, AlertCircle, CheckCircle2 } from "lucide-react";
 
 function getDhakaToday() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -20,7 +21,18 @@ function getDhakaToday() {
 }
 
 function getDateKey(value) {
-  return new Date(value).toISOString().slice(0, 10);
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 function getGuestCategory(guest, date) {
@@ -29,23 +41,36 @@ function getGuestCategory(guest, date) {
 
   if (checkIn === date) return "Checking In";
   if (checkOut === date) return "Checking Out";
+
   return "Staying";
 }
 
-export default function RestaurantOrderForm({ menuItems }) {
+function formatMoney(amount) {
+  return `৳${Number(amount || 0).toLocaleString("en-BD", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+export default function RestaurantOrderForm({ menuItems = [] }) {
   const router = useRouter();
 
   const [orderType, setOrderType] = useState("walk-in");
   const [bookingId, setBookingId] = useState("");
-  const [paymentMode, setPaymentMode] = useState("pay_now");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
+
   const [discount, setDiscount] = useState("0");
   const [extraCharges, setExtraCharges] = useState([]);
   const [chargeType, setChargeType] = useState("Service Charge");
   const [customChargeName, setCustomChargeName] = useState("");
   const [chargeAmount, setChargeAmount] = useState("");
   const [note, setNote] = useState("");
+
   const [cart, setCart] = useState({});
 
   const [selectedDate, setSelectedDate] = useState(getDhakaToday());
@@ -56,8 +81,9 @@ export default function RestaurantOrderForm({ menuItems }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [paymentRecoveryUrl, setPaymentRecoveryUrl] = useState("");
 
-  // Fetch guests whenever the selected date changes.
+  // Load cottage guests for the selected Bangladesh calendar date.
   useEffect(() => {
     let cancelled = false;
 
@@ -71,7 +97,7 @@ export default function RestaurantOrderForm({ menuItems }) {
 
       try {
         const response = await fetch(
-          `/api/admin/guests?date=${selectedDate}`,
+          `/api/admin/guests?date=${encodeURIComponent(selectedDate)}`,
           { cache: "no-store" }
         );
 
@@ -110,11 +136,11 @@ export default function RestaurantOrderForm({ menuItems }) {
 
   const cartItems = useMemo(() => {
     return menuItems
-      .filter((item) => cart[item.id] > 0)
+      .filter((item) => Number(cart[item.id]) > 0)
       .map((item) => ({
         ...item,
-        quantity: cart[item.id],
-        lineTotal: item.price * cart[item.id],
+        quantity: Number(cart[item.id]),
+        lineTotal: Number(item.price) * Number(cart[item.id]),
       }));
   }, [menuItems, cart]);
 
@@ -124,7 +150,7 @@ export default function RestaurantOrderForm({ menuItems }) {
   );
 
   const extraChargesTotal = extraCharges.reduce(
-    (sum, charge) => sum + charge.amount,
+    (sum, charge) => sum + Number(charge.amount || 0),
     0
   );
 
@@ -137,6 +163,7 @@ export default function RestaurantOrderForm({ menuItems }) {
       chargeType === "Other"
         ? customChargeName.trim()
         : chargeType;
+
     const amount = Number(chargeAmount);
 
     if (!name) {
@@ -158,12 +185,20 @@ export default function RestaurantOrderForm({ menuItems }) {
     }
 
     setError("");
+
     setExtraCharges((current) => [
       ...current,
-      { name, amount: Math.round(amount * 100) / 100 },
+      {
+        name,
+        amount: Math.round(amount * 100) / 100,
+      },
     ]);
+
     setChargeAmount("");
-    if (chargeType === "Other") setCustomChargeName("");
+
+    if (chargeType === "Other") {
+      setCustomChargeName("");
+    }
   }
 
   function removeExtraCharge(indexToRemove) {
@@ -192,9 +227,16 @@ export default function RestaurantOrderForm({ menuItems }) {
   function handleOrderTypeChange(value) {
     setOrderType(value);
     setBookingId("");
-    setPaymentMode("pay_now");
     setGuestName("");
     setGuestPhone("");
+
+    setPaymentMethod("cash");
+    setPaymentReference("");
+    setPaymentNote("");
+
+    setError("");
+    setSuccess("");
+    setPaymentRecoveryUrl("");
   }
 
   function handleBookingChange(value) {
@@ -211,9 +253,15 @@ export default function RestaurantOrderForm({ menuItems }) {
 
     setError("");
     setSuccess("");
+    setPaymentRecoveryUrl("");
 
     if (cartItems.length === 0) {
       setError("Please add at least one food item.");
+      return;
+    }
+
+    if (!Number.isFinite(total) || total <= 0) {
+      setError("The order total must be greater than zero.");
       return;
     }
 
@@ -222,19 +270,28 @@ export default function RestaurantOrderForm({ menuItems }) {
       return;
     }
 
-    if (orderType === "cottage" && !bookingId) {
-      setError("Please select a guest for the selected date.");
-      return;
-    }
-
     if (orderType === "cottage" && !selectedDate) {
       setError("Please select a guest date.");
       return;
     }
 
+    if (orderType === "cottage" && !bookingId) {
+      setError("Please select a guest for the selected date.");
+      return;
+    }
+
+    if (orderType === "cottage" && loadingGuests) {
+      setError("Please wait until the guest list finishes loading.");
+      return;
+    }
+
     setLoading(true);
 
+    let createdOrderId = null;
+    let createdOrderNumber = "";
+
     try {
+      // STEP 1: Save the restaurant order.
       const response = await fetch("/api/admin/restaurant-orders", {
         method: "POST",
         headers: {
@@ -242,50 +299,91 @@ export default function RestaurantOrderForm({ menuItems }) {
         },
         body: JSON.stringify({
           orderType,
-          bookingId: orderType === "cottage" ? bookingId : undefined,
+          bookingId:
+            orderType === "cottage" ? bookingId : undefined,
 
-          // Important: send the selected Bangladesh calendar date.
-          selectedDate: orderType === "cottage" ? selectedDate : undefined,
+          selectedDate:
+            orderType === "cottage" ? selectedDate : undefined,
 
           items: cartItems.map((item) => ({
             menuItemId: item.id,
             quantity: item.quantity,
           })),
+
           extraCharges,
           discount: safeDiscount,
-          paymentMode,
-          guestName,
-          guestPhone,
-          note,
+
+          // Walk-in: full payment recorded immediately after creation.
+          // Cottage: add the order to the guest's cottage bill.
+          paymentMode:
+            orderType === "cottage" ? "cottage_bill" : "pay_now",
+
+          guestName: guestName.trim(),
+          guestPhone: guestPhone.trim(),
+          note: note.trim(),
         }),
       });
 
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
+      if (!response.ok || !data.success || !data.order?._id) {
         throw new Error(data.message || "Could not create the order.");
       }
 
-      setSuccess(
-        `Order ${data.order.orderNumber} created successfully.`
-      );
+      createdOrderId = data.order._id;
+      createdOrderNumber = data.order.orderNumber || "";
 
-      setCart({});
-      setExtraCharges([]);
-      setDiscount("0");
-      setChargeType("Service Charge");
-      setCustomChargeName("");
-      setChargeAmount("");
-      setNote("");
-
+      // STEP 2: Record the complete walk-in payment.
       if (orderType === "walk-in") {
-        setGuestName("");
-        setGuestPhone("");
+        const paymentResponse = await fetch(
+          `/api/admin/restaurant-orders/${createdOrderId}/payments`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              method: paymentMethod,
+              reference: paymentReference.trim(),
+              note: paymentNote.trim(),
+            }),
+          }
+        );
+
+        const paymentData = await paymentResponse.json();
+
+        if (!paymentResponse.ok || !paymentData.success) {
+          setSuccess(
+            `Order ${createdOrderNumber} was created, but payment was not recorded.`
+          );
+
+          setPaymentRecoveryUrl(
+            `/admin/restaurant/orders/${createdOrderId}`
+          );
+
+          throw new Error(
+            paymentData.message ||
+            "Order created, but payment recording failed. Open Order Details and complete payment recording before printing a paid receipt."
+          );
+        }
       }
+
+      // STEP 3: Open the dedicated receipt page.
+      // The receipt page must exist before this workflow can be tested.
+      router.push(
+        `/admin/restaurant/orders/${createdOrderId}/receipt`
+      );
 
       router.refresh();
     } catch (err) {
       setError(err.message || "Something went wrong.");
+
+      // Keep the saved order accessible if payment recording failed.
+      if (createdOrderId && !paymentRecoveryUrl) {
+        setPaymentRecoveryUrl(
+          `/admin/restaurant/orders/${createdOrderId}`
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -293,7 +391,7 @@ export default function RestaurantOrderForm({ menuItems }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Customer type */}
+      {/* Customer Type */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5">
         <h2 className="font-bold text-gray-900">Customer Type</h2>
 
@@ -306,6 +404,7 @@ export default function RestaurantOrderForm({ menuItems }) {
               key={option.value}
               type="button"
               onClick={() => handleOrderTypeChange(option.value)}
+              disabled={loading}
               className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${orderType === option.value
                   ? "border-[#234b3b] bg-[#234b3b] text-white"
                   : "border-gray-200 text-gray-700 hover:bg-gray-50"
@@ -327,6 +426,7 @@ export default function RestaurantOrderForm({ menuItems }) {
                 type="date"
                 value={selectedDate}
                 onChange={(event) => setSelectedDate(event.target.value)}
+                disabled={loading}
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
               />
 
@@ -356,6 +456,7 @@ export default function RestaurantOrderForm({ menuItems }) {
                     handleBookingChange(event.target.value)
                   }
                   required
+                  disabled={loading}
                   className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
                 >
                   <option value="">Select a guest</option>
@@ -368,7 +469,8 @@ export default function RestaurantOrderForm({ menuItems }) {
 
                     return (
                       <option key={booking._id} value={booking._id}>
-                        {booking.guestName} — {booking.cottage?.name || "Cottage"} (
+                        {booking.guestName} —{" "}
+                        {booking.cottage?.name || "Cottage"} (
                         {category}) — {booking.bookingReference}
                       </option>
                     );
@@ -377,11 +479,13 @@ export default function RestaurantOrderForm({ menuItems }) {
               )}
             </div>
 
-            {!loadingGuests && !guestError && bookings.length === 0 && (
-              <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
-                No guests found for this date. Try another date.
-              </p>
-            )}
+            {!loadingGuests &&
+              !guestError &&
+              bookings.length === 0 && (
+                <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+                  No guests found for this date. Try another date.
+                </p>
+              )}
 
             {selectedBooking && (
               <div className="rounded-xl border border-[#234b3b]/15 bg-[#234b3b]/5 p-4">
@@ -410,9 +514,11 @@ export default function RestaurantOrderForm({ menuItems }) {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Customer Name (Optional)
               </label>
+
               <input
                 value={guestName}
                 onChange={(event) => setGuestName(event.target.value)}
+                disabled={loading}
                 maxLength={100}
                 placeholder="Customer name"
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
@@ -423,9 +529,11 @@ export default function RestaurantOrderForm({ menuItems }) {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Phone Number (Optional)
               </label>
+
               <input
                 value={guestPhone}
                 onChange={(event) => setGuestPhone(event.target.value)}
+                disabled={loading}
                 maxLength={30}
                 placeholder="Phone number"
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
@@ -439,6 +547,7 @@ export default function RestaurantOrderForm({ menuItems }) {
       <section className="rounded-2xl border border-gray-200 bg-white p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-bold text-gray-900">Select Food Items</h2>
+
           <span className="text-xs text-gray-500">
             {cartItems.length} selected
           </span>
@@ -457,12 +566,16 @@ export default function RestaurantOrderForm({ menuItems }) {
                 className="flex items-center justify-between gap-3 py-4"
               >
                 <div className="min-w-0">
-                  <p className="font-semibold text-gray-900">{item.name}</p>
+                  <p className="font-semibold text-gray-900">
+                    {item.name}
+                  </p>
+
                   <p className="mt-1 text-xs text-gray-500">
                     {item.category}
                   </p>
+
                   <p className="mt-1 text-sm font-semibold text-[#234b3b]">
-                    ৳{item.price.toLocaleString("en-BD")}
+                    {formatMoney(item.price)}
                   </p>
                 </div>
 
@@ -470,8 +583,9 @@ export default function RestaurantOrderForm({ menuItems }) {
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.id, -1)}
-                    disabled={!cart[item.id]}
+                    disabled={loading || !cart[item.id]}
                     className="h-9 w-9 rounded-lg border border-gray-300 text-lg disabled:opacity-30"
+                    aria-label={`Decrease ${item.name}`}
                   >
                     −
                   </button>
@@ -483,8 +597,11 @@ export default function RestaurantOrderForm({ menuItems }) {
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.id, 1)}
-                    disabled={(cart[item.id] || 0) >= 100}
+                    disabled={
+                      loading || (cart[item.id] || 0) >= 100
+                    }
                     className="h-9 w-9 rounded-lg border border-gray-300 text-lg disabled:opacity-30"
+                    aria-label={`Increase ${item.name}`}
                   >
                     +
                   </button>
@@ -495,39 +612,117 @@ export default function RestaurantOrderForm({ menuItems }) {
         )}
       </section>
 
-      {/* Payment and discount */}
+      {/* Payment, Charges and Discount */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5">
-        <h2 className="font-bold text-gray-900">Payment & Discount</h2>
+        <h2 className="font-bold text-gray-900">
+          Payment & Discount
+        </h2>
 
-        <div className="mt-4">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Payment Mode
-          </label>
+        <div className="mt-4 rounded-xl border border-[#234b3b]/15 bg-[#234b3b]/5 p-4">
+          <p className="text-sm font-semibold text-[#234b3b]">
+            {orderType === "walk-in"
+              ? "Immediate Full Payment"
+              : "Add to Cottage Bill"}
+          </p>
 
-          <select
-            value={paymentMode}
-            onChange={(event) => setPaymentMode(event.target.value)}
-            className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
-          >
-            <option value="pay_now">Pay Immediately</option>
-
-            {orderType === "cottage" && (
-              <option value="cottage_bill">Add to Cottage Bill</option>
-            )}
-          </select>
+          <p className="mt-1 text-sm leading-6 text-gray-600">
+            {orderType === "walk-in"
+              ? "Record the customer's full restaurant payment before opening the receipt."
+              : "This restaurant bill will be added to the selected guest's accommodation bill and settled during checkout."}
+          </p>
         </div>
 
-        {/* Extra charges */}
+        {orderType === "walk-in" && (
+          <div className="mt-4 space-y-4 rounded-xl border border-gray-200 p-4">
+            <h3 className="text-sm font-bold text-gray-900">
+              Payment Information
+            </h3>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Payment Method
+              </label>
+
+              <select
+                value={paymentMethod}
+                onChange={(event) =>
+                  setPaymentMethod(event.target.value)
+                }
+                disabled={loading}
+                required
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
+              >
+                <option value="cash">Cash</option>
+                <option value="bkash">bKash</option>
+                <option value="nagad">Nagad</option>
+                <option value="bank">Bank Transfer</option>
+              </select>
+            </div>
+
+            {paymentMethod !== "cash" && (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Transaction / Reference Number (Optional)
+                </label>
+
+                <input
+                  value={paymentReference}
+                  onChange={(event) =>
+                    setPaymentReference(event.target.value)
+                  }
+                  disabled={loading}
+                  maxLength={100}
+                  placeholder="Enter transaction or reference number"
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Payment Note (Optional)
+              </label>
+
+              <textarea
+                value={paymentNote}
+                onChange={(event) =>
+                  setPaymentNote(event.target.value)
+                }
+                disabled={loading}
+                maxLength={500}
+                rows={2}
+                placeholder="Additional payment information..."
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
+              />
+            </div>
+
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs text-gray-500">
+                Full payment to be recorded
+              </p>
+
+              <p className="mt-1 text-lg font-bold text-[#234b3b]">
+                {formatMoney(total)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Extra Charges */}
         <div className="mt-6 rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Extra Charges</h3>
+              <h3 className="text-sm font-bold text-gray-900">
+                Extra Charges
+              </h3>
+
               <p className="mt-1 text-xs text-gray-500">
                 Add service, delivery, packaging, or other charges.
               </p>
             </div>
+
             <span className="text-sm font-semibold text-gray-700">
-              ৳{extraChargesTotal.toLocaleString("en-BD")}
+              {formatMoney(extraChargesTotal)}
             </span>
           </div>
 
@@ -536,16 +731,26 @@ export default function RestaurantOrderForm({ menuItems }) {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Charge Type
               </label>
+
               <select
                 value={chargeType}
-                onChange={(event) => setChargeType(event.target.value)}
+                onChange={(event) =>
+                  setChargeType(event.target.value)
+                }
+                disabled={loading}
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
               >
                 <option value="Service Charge">Service Charge</option>
-                <option value="Room Service Charge">Room Service Charge</option>
+                <option value="Room Service Charge">
+                  Room Service Charge
+                </option>
                 <option value="Delivery Charge">Delivery Charge</option>
-                <option value="Food Packaging Charge">Food Packaging Charge</option>
-                <option value="Special Arrangement Charge">Special Arrangement Charge</option>
+                <option value="Food Packaging Charge">
+                  Food Packaging Charge
+                </option>
+                <option value="Special Arrangement Charge">
+                  Special Arrangement Charge
+                </option>
                 <option value="Other">Other (Custom)</option>
               </select>
             </div>
@@ -554,12 +759,16 @@ export default function RestaurantOrderForm({ menuItems }) {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Amount (৳)
               </label>
+
               <input
                 type="number"
                 min="0.01"
                 step="0.01"
                 value={chargeAmount}
-                onChange={(event) => setChargeAmount(event.target.value)}
+                onChange={(event) =>
+                  setChargeAmount(event.target.value)
+                }
+                disabled={loading}
                 placeholder="Enter amount"
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
               />
@@ -571,9 +780,13 @@ export default function RestaurantOrderForm({ menuItems }) {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Custom Charge Name
               </label>
+
               <input
                 value={customChargeName}
-                onChange={(event) => setCustomChargeName(event.target.value)}
+                onChange={(event) =>
+                  setCustomChargeName(event.target.value)
+                }
+                disabled={loading}
                 maxLength={100}
                 placeholder="e.g. Birthday decoration"
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
@@ -584,7 +797,8 @@ export default function RestaurantOrderForm({ menuItems }) {
           <button
             type="button"
             onClick={addExtraCharge}
-            className="mt-3 rounded-lg bg-[#234b3b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#173729]"
+            disabled={loading}
+            className="mt-3 rounded-lg bg-[#234b3b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#173729] disabled:opacity-50"
           >
             + Add Charge
           </button>
@@ -600,14 +814,17 @@ export default function RestaurantOrderForm({ menuItems }) {
                     <p className="text-sm font-medium text-gray-800">
                       {charge.name}
                     </p>
+
                     <p className="text-sm text-gray-600">
-                      ৳{charge.amount.toLocaleString("en-BD")}
+                      {formatMoney(charge.amount)}
                     </p>
                   </div>
+
                   <button
                     type="button"
                     onClick={() => removeExtraCharge(index)}
-                    className="rounded-lg px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    disabled={loading}
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
                     aria-label={`Remove ${charge.name}`}
                   >
                     Remove
@@ -618,10 +835,12 @@ export default function RestaurantOrderForm({ menuItems }) {
           )}
         </div>
 
+        {/* Discount */}
         <div className="mt-4">
           <label className="mb-2 block text-sm font-medium text-gray-700">
             Discount Amount (৳)
           </label>
+
           <input
             type="number"
             min="0"
@@ -629,17 +848,21 @@ export default function RestaurantOrderForm({ menuItems }) {
             step="0.01"
             value={discount}
             onChange={(event) => setDiscount(event.target.value)}
+            disabled={loading}
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#234b3b]"
           />
         </div>
 
+        {/* Note */}
         <div className="mt-4">
           <label className="mb-2 block text-sm font-medium text-gray-700">
             Order Note (Optional)
           </label>
+
           <textarea
             value={note}
             onChange={(event) => setNote(event.target.value)}
+            disabled={loading}
             maxLength={500}
             rows={3}
             placeholder="Special instructions..."
@@ -647,56 +870,80 @@ export default function RestaurantOrderForm({ menuItems }) {
           />
         </div>
 
+        {/* Bill Summary */}
         <div className="mt-5 space-y-2 rounded-xl bg-gray-50 p-4">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Subtotal</span>
-            <span>৳{subtotal.toLocaleString("en-BD")}</span>
+            <span>{formatMoney(subtotal)}</span>
           </div>
 
           <div className="flex justify-between text-sm text-gray-600">
             <span>Extra Charges</span>
-            <span>+ ৳{extraChargesTotal.toLocaleString("en-BD")}</span>
+            <span>+ {formatMoney(extraChargesTotal)}</span>
           </div>
 
           <div className="flex justify-between text-sm text-gray-600">
             <span>Discount</span>
-            <span>− ৳{safeDiscount.toLocaleString("en-BD")}</span>
+            <span>− {formatMoney(safeDiscount)}</span>
           </div>
 
           <div className="flex justify-between border-t border-gray-200 pt-3 text-lg font-bold text-gray-900">
             <span>Total</span>
-            <span>৳{total.toLocaleString("en-BD")}</span>
+            <span>{formatMoney(total)}</span>
           </div>
         </div>
       </section>
 
+      {/* Errors and status */}
       {error && (
-        <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </p>
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <p>{error}</p>
+        </div>
       )}
 
       {success && (
-        <p className="rounded-xl bg-green-50 p-4 text-sm text-green-700">
-          {success}
-        </p>
+        <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
+          <p>{success}</p>
+        </div>
       )}
 
+      {paymentRecoveryUrl && (
+        <a
+          href={paymentRecoveryUrl}
+          className="block rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
+        >
+          Open Order Details to Complete Payment
+        </a>
+      )}
+
+      {/* Submit */}
       <button
         type="submit"
         disabled={
           loading ||
           cartItems.length === 0 ||
-          (orderType === "cottage" && (!bookingId || loadingGuests))
+          total <= 0 ||
+          (orderType === "cottage" &&
+            (!bookingId || loadingGuests || Boolean(guestError)))
         }
-        className="w-full rounded-xl bg-[#234b3b] px-5 py-4 font-semibold text-white transition hover:bg-[#173729] disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#234b3b] px-5 py-4 font-semibold text-white transition hover:bg-[#173729] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loading ? "Creating Order..." : "Create Restaurant Order"}
+        {loading ? (
+          "Processing Order..."
+        ) : (
+          <>
+            <Printer size={18} />
+            Create Order & Print Receipt
+          </>
+        )}
       </button>
 
-      <p className="text-xs leading-5 text-gray-500">
-        Creating an order does not record a payment yet. Payment collection
-        will be handled separately.
+      <p className="text-center text-xs leading-5 text-gray-500">
+        {orderType === "walk-in"
+          ? "The full payment will be recorded before the receipt is opened."
+          : "The order will be added to the guest's cottage bill and settled during checkout."}
       </p>
     </form>
   );
