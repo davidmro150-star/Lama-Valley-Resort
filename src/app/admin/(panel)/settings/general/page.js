@@ -153,7 +153,7 @@ export default function GeneralSettingsPage() {
         </h1>
 
         <p className="mt-2 text-sm text-gray-500">
-          Manage your resort's basic information and contact details.
+        Manage your resort&apos;s basic information and contact details.
         </p>
       </div>
 

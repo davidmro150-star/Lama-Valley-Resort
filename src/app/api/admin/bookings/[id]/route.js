@@ -10,7 +10,7 @@ import sendBookingCancellation from "@/lib/sendBookingCancellation";
 import sendBookingRejection from "@/lib/sendBookingRejection";
 
 import Booking from "@/models/booking";
-import Cottage from "@/models/Cottage";
+import "@/models/Cottage";
 import RestaurantOrder from "@/models/RestaurantOrder";
 
 // Round money to two decimal places.
@@ -18,14 +18,25 @@ function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
-// Allocate booking checkout payments to restaurant orders.
-// Booking payments first cover the outstanding cottage balance.
-// Any excess is allocated to restaurant orders without duplicating payments.
+function validAdminId(session) {
+  const adminId = session?.user?.id || session?.user?._id;
+
+  return adminId && mongoose.Types.ObjectId.isValid(adminId)
+    ? adminId
+    : null;
+}
+
+// Only cottage_bill restaurant orders belong to the accommodation account.
+// pay_now orders and their payment histories are never modified here.
 async function synchronizeRestaurantPayments(
   booking,
   restaurantOrders,
   session
 ) {
+  const billableOrders = restaurantOrders.filter(
+    (order) => order.paymentMode === "cottage_bill"
+  );
+
   const verifiedAdvance =
     booking.paymentStatus === "verified"
       ? money(booking.paymentAmount)
@@ -42,7 +53,7 @@ async function synchronizeRestaurantPayments(
       new Date(b.paidAt || 0).getTime()
   );
 
-  const sortedOrders = [...restaurantOrders].sort(
+  const sortedOrders = [...billableOrders].sort(
     (a, b) =>
       new Date(a.createdAt || 0).getTime() -
       new Date(b.createdAt || 0).getTime()
@@ -54,11 +65,11 @@ async function synchronizeRestaurantPayments(
     allocationsByOrder.set(order._id.toString(), []);
   }
 
-  // Process booking payments in chronological order.
+  // Allocate booking payments chronologically.
   for (const payment of sortedPayments) {
     let availableAmount = money(payment.amount);
 
-    // First, pay the remaining cottage accommodation balance.
+    // Accommodation is paid first.
     const cottageContribution = Math.min(
       availableAmount,
       remainingCottageBalance
@@ -72,20 +83,15 @@ async function synchronizeRestaurantPayments(
       remainingCottageBalance - cottageContribution
     );
 
-    if (availableAmount <= 0) {
-      continue;
-    }
+    if (availableAmount <= 0) continue;
 
-    // Any excess can cover restaurant orders that existed
-    // when the payment was recorded.
     const paymentDate = new Date(
       payment.paidAt || booking.createdAt || Date.now()
     );
 
+    // Any excess can cover cottage-bill orders that already existed.
     for (const order of sortedOrders) {
-      if (availableAmount <= 0) {
-        break;
-      }
+      if (availableAmount <= 0) break;
 
       if (
         order.orderStatus === "cancelled" ||
@@ -99,10 +105,10 @@ async function synchronizeRestaurantPayments(
         0
       );
 
-      const currentAllocations =
+      const allocations =
         allocationsByOrder.get(order._id.toString()) || [];
 
-      const alreadyAllocated = currentAllocations.reduce(
+      const alreadyAllocated = allocations.reduce(
         (total, item) => total + money(item.amount),
         0
       );
@@ -116,16 +122,14 @@ async function synchronizeRestaurantPayments(
         )
       );
 
-      if (orderBalance <= 0) {
-        continue;
-      }
+      if (orderBalance <= 0) continue;
 
       const allocationAmount = Math.min(
         availableAmount,
         orderBalance
       );
 
-      currentAllocations.push({
+      allocations.push({
         bookingPaymentId: payment._id,
         amount: money(allocationAmount),
         allocatedAt: payment.paidAt || new Date(),
@@ -133,7 +137,7 @@ async function synchronizeRestaurantPayments(
 
       allocationsByOrder.set(
         order._id.toString(),
-        currentAllocations
+        allocations
       );
 
       availableAmount = money(
@@ -142,8 +146,8 @@ async function synchronizeRestaurantPayments(
     }
   }
 
-  // Save allocation references and synchronize payment statuses.
-  for (const order of restaurantOrders) {
+  // Update only cottage-bill orders.
+  for (const order of billableOrders) {
     const allocations =
       allocationsByOrder.get(order._id.toString()) || [];
 
@@ -154,29 +158,26 @@ async function synchronizeRestaurantPayments(
       0
     );
 
-    const checkoutAllocations = allocations.reduce(
+    const allocatedTotal = allocations.reduce(
       (total, allocation) =>
         total + money(allocation.amount),
       0
     );
 
-    const orderReceived = money(
-      directPayments + checkoutAllocations
-    );
+    const received = money(directPayments + allocatedTotal);
 
-     if (orderReceived >= money(order.total)) {
-     order.paymentStatus = "paid";
-     } else {
-        order.paymentStatus = "unpaid";
-      }
+    order.paymentStatus =
+      received >= money(order.total) ? "paid" : "unpaid";
 
     await order.save({ session });
   }
+
+  return billableOrders;
 }
 
 export async function PATCH(request, { params }) {
   try {
-    // 1. Verify administrator authentication.
+    // 1. Authenticate administrator.
     const session = await auth();
 
     if (!session?.user || session.user.role !== "admin") {
@@ -208,9 +209,15 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid request body." },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
 
-    // 4. Find booking.
     const existingBooking = await Booking.findById(id);
 
     if (!existingBooking) {
@@ -220,8 +227,8 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 5. Synchronize existing payments without recording new money.
-    if (body?.action === "sync-restaurant-payments") {
+    // 4. Synchronize existing booking payments with cottage-bill orders.
+    if (body.action === "sync-restaurant-payments") {
       const dbSession = await mongoose.startSession();
 
       let syncResult = null;
@@ -240,12 +247,9 @@ export async function PATCH(request, { params }) {
                 message: "Booking not found.",
               },
             };
-
             return;
           }
 
-          // Confirmed front-desk bookings do not need
-          // an online advance payment to synchronize payments.
           if (
             booking.status !== "confirmed" ||
             (
@@ -261,7 +265,6 @@ export async function PATCH(request, { params }) {
                   "Only confirmed front-desk bookings or confirmed bookings with verified online advances can be synchronized.",
               },
             };
-
             return;
           }
 
@@ -272,13 +275,14 @@ export async function PATCH(request, { params }) {
             .sort({ createdAt: 1 })
             .session(dbSession);
 
-          await synchronizeRestaurantPayments(
-            booking,
-            restaurantOrders,
-            dbSession
-          );
+          const billableOrders =
+            await synchronizeRestaurantPayments(
+              booking,
+              restaurantOrders,
+              dbSession
+            );
 
-          const allocatedTotal = restaurantOrders.reduce(
+          const allocatedTotal = billableOrders.reduce(
             (total, order) =>
               total +
               (order.checkoutPaymentAllocations || []).reduce(
@@ -289,7 +293,7 @@ export async function PATCH(request, { params }) {
             0
           );
 
-          const paidOrders = restaurantOrders.filter(
+          const paidOrders = billableOrders.filter(
             (order) => order.paymentStatus === "paid"
           ).length;
 
@@ -298,8 +302,8 @@ export async function PATCH(request, { params }) {
             data: {
               success: true,
               message:
-                "Existing payments synchronized successfully. No new payment was recorded.",
-              restaurantOrdersUpdated: restaurantOrders.length,
+                "Existing booking payments synchronized successfully. No new payment was recorded.",
+              restaurantOrdersUpdated: billableOrders.length,
               paidOrders,
               checkoutAllocations: money(allocatedTotal),
             },
@@ -324,11 +328,11 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // 6. Record additional / combined checkout payment.
-    if (body?.action === "record-payment") {
-      const adminId = session.user.id || session.user._id;
+    // 5. Record additional accommodation / checkout payment.
+    if (body.action === "record-payment") {
+      const adminId = validAdminId(session);
 
-      if (!adminId || !mongoose.Types.ObjectId.isValid(adminId)) {
+      if (!adminId) {
         return NextResponse.json(
           {
             success: false,
@@ -396,7 +400,6 @@ export async function PATCH(request, { params }) {
         await dbSession.withTransaction(async () => {
           paymentResult = null;
 
-          // Get the latest booking inside the transaction.
           const booking = await Booking.findById(id).session(
             dbSession
           );
@@ -409,12 +412,9 @@ export async function PATCH(request, { params }) {
                 message: "Booking not found.",
               },
             };
-
             return;
           }
 
-          // Front-desk bookings can receive payments when confirmed.
-          // Online bookings still require a verified advance payment.
           if (
             booking.status !== "confirmed" ||
             (
@@ -430,11 +430,9 @@ export async function PATCH(request, { params }) {
                   "Additional payments can only be recorded for confirmed front-desk bookings or confirmed bookings with verified online advances.",
               },
             };
-
             return;
           }
 
-          // Load every non-cancelled restaurant order linked to this booking.
           const restaurantOrders = await RestaurantOrder.find({
             booking: booking._id,
             orderStatus: { $ne: "cancelled" },
@@ -442,7 +440,10 @@ export async function PATCH(request, { params }) {
             .sort({ createdAt: 1 })
             .session(dbSession);
 
-          // Only count an advance payment after it has been verified.
+          const billableOrders = restaurantOrders.filter(
+            (order) => order.paymentMode === "cottage_bill"
+          );
+
           const verifiedAdvance =
             booking.paymentStatus === "verified"
               ? money(booking.paymentAmount)
@@ -456,40 +457,21 @@ export async function PATCH(request, { params }) {
             0
           );
 
-          const restaurantTotal = restaurantOrders.reduce(
-            (total, order) =>
-              total + money(order.total),
+          const cottageTotal = money(booking.totalPrice);
+
+          const restaurantTotal = billableOrders.reduce(
+            (total, order) => total + money(order.total),
             0
           );
-
-          const restaurantDirectPayments =
-            restaurantOrders.reduce(
-              (total, order) => {
-                const directPayments = (
-                  order.payments || []
-                ).reduce(
-                  (sum, payment) =>
-                    sum + money(payment.amount),
-                  0
-                );
-
-                return total + directPayments;
-              },
-              0
-            );
-
-          const cottageTotal = money(booking.totalPrice);
 
           const grandTotal = money(
             cottageTotal + restaurantTotal
           );
 
-          // Checkout allocations are references to booking payments.
-          // Do not count them again.
+          // Only booking payments count toward accommodation.
+          // Immediate restaurant payments remain separate.
           const totalReceived = money(
-            verifiedAdvance +
-              bookingAdditionalPayments +
-              restaurantDirectPayments
+            verifiedAdvance + bookingAdditionalPayments
           );
 
           const outstandingAmount = Math.max(
@@ -508,11 +490,9 @@ export async function PATCH(request, { params }) {
                 totalReceived,
               },
             };
-
             return;
           }
 
-          // Record the payment once in the booking.
           booking.payments.push({
             amount,
             method: body.method,
@@ -524,7 +504,6 @@ export async function PATCH(request, { params }) {
 
           await booking.save({ session: dbSession });
 
-          // Allocate the booking payments to restaurant orders.
           await synchronizeRestaurantPayments(
             booking,
             restaurantOrders,
@@ -540,9 +519,7 @@ export async function PATCH(request, { params }) {
           );
 
           const updatedTotalReceived = money(
-            verifiedAdvance +
-              updatedBookingPayments +
-              restaurantDirectPayments
+            verifiedAdvance + updatedBookingPayments
           );
 
           const remainingBalance = Math.max(
@@ -551,7 +528,7 @@ export async function PATCH(request, { params }) {
           );
 
           const allocatedRestaurantPayments =
-            restaurantOrders.reduce(
+            billableOrders.reduce(
               (total, order) => {
                 const allocated = (
                   order.checkoutPaymentAllocations || []
@@ -571,7 +548,7 @@ export async function PATCH(request, { params }) {
             data: {
               success: true,
               message:
-                "Checkout payment recorded and restaurant payment statuses synchronized successfully.",
+                "Accommodation payment recorded and cottage-bill restaurant payment statuses synchronized successfully.",
               booking: {
                 id: booking._id.toString(),
                 status: booking.status,
@@ -580,9 +557,8 @@ export async function PATCH(request, { params }) {
                 grandTotal,
                 totalReceived: updatedTotalReceived,
                 remainingBalance,
-                restaurantDirectPayments,
                 restaurantCheckoutAllocations:
-                  allocatedRestaurantPayments,
+                  money(allocatedRestaurantPayments),
               },
             },
           };
@@ -607,8 +583,8 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // 7. Payment verification action.
-    if (body?.action === "verify-payment") {
+    // 6. Verify submitted online advance payment.
+    if (body.action === "verify-payment") {
       if (existingBooking.status !== "pending") {
         return NextResponse.json(
           {
@@ -647,17 +623,14 @@ export async function PATCH(request, { params }) {
         );
       }
 
-      const adminId = session.user.id || session.user._id;
+      const adminId = validAdminId(session);
 
       const updateFields = {
         paymentStatus: "verified",
         paymentVerifiedAt: new Date(),
       };
 
-      if (
-        adminId &&
-        mongoose.Types.ObjectId.isValid(adminId)
-      ) {
+      if (adminId) {
         updateFields.paymentVerifiedBy = adminId;
       }
 
@@ -700,8 +673,8 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // 8. Validate booking status action.
-    const { status } = body || {};
+    // 7. Validate booking status action.
+    const { status } = body;
 
     const allowedStatuses = [
       "confirmed",
@@ -722,7 +695,6 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 9. Determine required previous booking status.
     const requiredPreviousStatus =
       status === "cancelled" ? "confirmed" : "pending";
 
@@ -740,7 +712,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 10. Atomically update booking.
+    // 8. Atomically update booking status.
     const updateQuery = {
       _id: id,
       status: requiredPreviousStatus,
@@ -772,7 +744,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 11. Send appropriate email.
+    // 9. Send appropriate booking email.
     let emailSent = false;
 
     try {
@@ -784,7 +756,7 @@ export async function PATCH(request, { params }) {
         emailResult = await sendBookingConfirmation(booking);
       } else if (status === "cancelled") {
         emailResult = await sendBookingCancellation(booking);
-      } else if (status === "rejected") {
+      } else {
         emailResult = await sendBookingRejection(booking);
       }
 
@@ -802,7 +774,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 12. Prepare response message.
+    // 10. Prepare response.
     let message;
 
     if (status === "confirmed") {

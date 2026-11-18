@@ -662,11 +662,11 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
               <span>
                 <span className="block text-sm font-semibold text-gray-900">
                   Add to Cottage Bill
+                  Add the restaurant charges to the guest&apos;s accommodation
                 </span>
 
                 <span className="mt-1 block text-xs leading-5 text-gray-500">
-                  Add the restaurant charges to the guest's accommodation
-                  bill for payment at final checkout.
+                  The complete restaurant order will be added to the guest&apos;s cottage bill and settled at final checkout.
                 </span>
               </span>
             </label>

@@ -2,7 +2,7 @@
 import { notFound } from "next/navigation";
 import mongoose from "mongoose";
 import Image from "next/image";
-
+import "@/models/Cottage";
 import connectDB from "@/lib/mongodb";
 import Booking from "@/models/booking";
 import RestaurantOrder from "@/models/RestaurantOrder";

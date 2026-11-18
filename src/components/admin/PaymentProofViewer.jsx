@@ -62,7 +62,7 @@ export default function PaymentProofViewer({ bookingId }) {
                   Payment Screenshot
                 </h2>
                 <p className="mt-1 text-xs text-gray-500">
-                  Review the guest's payment evidence.
+                  Review the guest&apos;s payment evidence.
                 </p>
               </div>
 

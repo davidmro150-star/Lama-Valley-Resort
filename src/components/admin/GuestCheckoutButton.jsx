@@ -63,7 +63,7 @@ export default function GuestCheckoutButton({
           </h3>
 
           <p className="mt-1 text-sm text-gray-500">
-            Complete the guest's checkout after confirming that
+            Complete the guest&apos;s checkout after confirming that
             all cottage and restaurant bills have been paid.
           </p>
         </div>

@@ -294,8 +294,8 @@ export default function RestaurantReceiptPrint({ order, settings }) {
             ))
           ) : isCottageOrder ? (
             <p className="text-gray-500">
-              This order will be settled with the guest's cottage bill at
-              checkout.
+                This order will be settled with the guest&apos;s cottage bill at
+                checkout.
             </p>
           ) : (
             <p className="text-gray-500">No payment recorded.</p>

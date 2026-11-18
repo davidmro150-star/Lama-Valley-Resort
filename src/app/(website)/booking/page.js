@@ -507,7 +507,7 @@ function BookingContent() {
                 <p className="mt-3 text-xs leading-6 text-white/60">
                   Remaining amount: ৳
                   {formatPrice(totalAmount - advanceAmount)}.
-                  Payable according to the resort's payment policy.
+                  Payable according to the resort&apos;s payment policy.
                 </p>
               </>
             )}

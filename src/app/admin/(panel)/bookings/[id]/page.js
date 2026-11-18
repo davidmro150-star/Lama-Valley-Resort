@@ -153,7 +153,9 @@ function SummaryCard({ label, amount, icon: Icon, type = "default", note }) {
     <div className={`rounded-2xl border p-4 sm:p-5 ${styles[type]}`}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium opacity-80">{label}</p>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${iconStyles[type]}`}>
+        <div
+          className={`flex h-9 w-9 items-center justify-center rounded-xl ${iconStyles[type]}`}
+        >
           <Icon size={18} />
         </div>
       </div>
@@ -219,7 +221,9 @@ export default async function BookingDetailsPage({ params }) {
 
   if (!booking) notFound();
 
-  // PAYMENT CALCULATIONS
+  // --------------------------------------------------
+  // ACCOMMODATION ACCOUNT CALCULATIONS
+  // --------------------------------------------------
 
   const cottageTotal = Number(booking.totalPrice) || 0;
 
@@ -238,11 +242,19 @@ export default async function BookingDetailsPage({ params }) {
   const bookingPaymentsReceived =
     verifiedAdvance + bookingAdditionalPayments;
 
-  const restaurantTotal = restaurantOrders.reduce(
+  // Only cottage_bill orders belong to the accommodation account.
+  // pay_now orders are separate restaurant transactions.
+  const billableRestaurantOrders = restaurantOrders.filter(
+    (order) => order.paymentMode === "cottage_bill"
+  );
+
+  const restaurantTotal = billableRestaurantOrders.reduce(
     (sum, order) => sum + (Number(order.total) || 0),
     0
   );
 
+  // Direct restaurant payments are tracked separately.
+  // They must never reduce the accommodation account balance.
   const restaurantPayments = restaurantOrders.reduce(
     (allPayments, order) => {
       const payments = Array.isArray(order.payments) ? order.payments : [];
@@ -251,6 +263,7 @@ export default async function BookingDetailsPage({ params }) {
         payments.map((payment) => ({
           ...payment,
           orderNumber: order.orderNumber,
+          paymentMode: order.paymentMode,
         }))
       );
     },
@@ -262,7 +275,9 @@ export default async function BookingDetailsPage({ params }) {
     0
   );
 
-  const restaurantCheckoutAllocations = restaurantOrders.reduce(
+  // Only cottage_bill allocations are relevant to the cottage account.
+  // Allocations reference booking payments and are not new payments.
+  const restaurantCheckoutAllocations = billableRestaurantOrders.reduce(
     (sum, order) => {
       const allocations = Array.isArray(order.checkoutPaymentAllocations)
         ? order.checkoutPaymentAllocations
@@ -282,10 +297,10 @@ export default async function BookingDetailsPage({ params }) {
 
   const grandTotal = cottageTotal + restaurantTotal;
 
-  // Checkout allocations reference existing booking payments.
-  // They must not be counted again as additional received money.
-  const totalReceived =
-    bookingPaymentsReceived + restaurantPaymentsReceived;
+  // Booking payments are counted once.
+  // Restaurant pay_now payments are separate and excluded.
+  // Checkout allocations are references to existing booking payments.
+  const totalReceived = bookingPaymentsReceived;
 
   const remaining = Math.max(grandTotal - totalReceived, 0);
   const isFullyPaid = remaining <= 0;
@@ -294,13 +309,13 @@ export default async function BookingDetailsPage({ params }) {
 
   const canSynchronize =
     booking.status === "confirmed" &&
-    (
-      booking.bookingSource === "front_desk" ||
-      booking.paymentStatus === "verified"
-    ) &&
-    restaurantOrders.length > 0;
+    (booking.bookingSource === "front_desk" ||
+      booking.paymentStatus === "verified") &&
+    billableRestaurantOrders.length > 0;
 
-  // PAYMENT HISTORY
+  // --------------------------------------------------
+  // BOOKING PAYMENT HISTORY
+  // --------------------------------------------------
 
   const paymentRecords = [];
 
@@ -332,8 +347,7 @@ export default async function BookingDetailsPage({ params }) {
   if (Array.isArray(booking.payments)) {
     booking.payments.forEach((payment, index) => {
       const recordedBy =
-        payment.recordedBy &&
-        typeof payment.recordedBy === "object"
+        payment.recordedBy && typeof payment.recordedBy === "object"
           ? payment.recordedBy.name ||
             payment.recordedBy.email ||
             "Administrator"
@@ -395,30 +409,30 @@ export default async function BookingDetailsPage({ params }) {
 
           {/* INVOICE BUTTON + GUEST ACCOUNT STATUS */}
           <div className="flex flex-wrap items-center gap-3">
-       <Link
-  href={`/admin/bookings/${booking._id.toString()}/invoice`}
-  style={{
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    backgroundColor: "#234b3b",
-    color: "#ffffff",
-    padding: "12px 18px",
-    borderRadius: "12px",
-    fontSize: "14px",
-    fontWeight: 700,
-    fontFamily: "Arial, Helvetica, sans-serif",
-    opacity: 1,
-    filter: "none",
-    transform: "none",
-    textShadow: "none",
-    WebkitFontSmoothing: "auto",
-  }}
-    >
-  <Receipt size={17} />
-  View Invoice
-    </Link> 
+            <Link
+              href={`/admin/bookings/${booking._id.toString()}/invoice`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                backgroundColor: "#234b3b",
+                color: "#ffffff",
+                padding: "12px 18px",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: 700,
+                fontFamily: "Arial, Helvetica, sans-serif",
+                opacity: 1,
+                filter: "none",
+                transform: "none",
+                textShadow: "none",
+                WebkitFontSmoothing: "auto",
+              }}
+            >
+              <Receipt size={17} />
+              View Invoice
+            </Link>
 
             <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
               {isFullyPaid ? (
@@ -448,7 +462,7 @@ export default async function BookingDetailsPage({ params }) {
           label="Total Bill"
           amount={grandTotal}
           icon={Receipt}
-          note="Cottage + restaurant charges"
+          note="Cottage + cottage-bill restaurant charges"
         />
 
         <SummaryCard
@@ -456,7 +470,7 @@ export default async function BookingDetailsPage({ params }) {
           amount={totalReceived}
           icon={Wallet}
           type="received"
-          note="Verified and recorded payments"
+          note="Verified and recorded booking payments"
         />
 
         <SummaryCard
@@ -481,10 +495,26 @@ export default async function BookingDetailsPage({ params }) {
             />
 
             <div className="mt-6 grid gap-5 sm:grid-cols-2">
-              <InfoItem icon={UserRound} label="Guest Name" value={booking.guestName} />
-              <InfoItem icon={Mail} label="Email Address" value={booking.guestEmail} />
-              <InfoItem icon={Phone} label="Phone Number" value={booking.guestPhone} />
-              <InfoItem icon={UserRound} label="Number of Guests" value={booking.guests} />
+              <InfoItem
+                icon={UserRound}
+                label="Guest Name"
+                value={booking.guestName}
+              />
+              <InfoItem
+                icon={Mail}
+                label="Email Address"
+                value={booking.guestEmail}
+              />
+              <InfoItem
+                icon={Phone}
+                label="Phone Number"
+                value={booking.guestPhone}
+              />
+              <InfoItem
+                icon={UserRound}
+                label="Number of Guests"
+                value={booking.guests}
+              />
             </div>
           </section>
 
@@ -525,7 +555,7 @@ export default async function BookingDetailsPage({ params }) {
             <SectionHeading
               icon={Utensils}
               title="Restaurant Orders"
-              description="Food orders and charges linked to this cottage booking."
+              description="All food orders linked to this cottage booking. Immediate restaurant payments are kept separate from the cottage account."
               action={
                 <span className="w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
                   {restaurantOrders.length}{" "}
@@ -557,6 +587,8 @@ export default async function BookingDetailsPage({ params }) {
                     0
                   );
 
+                  const isCottageBill = order.paymentMode === "cottage_bill";
+
                   return (
                     <div
                       key={order._id.toString()}
@@ -574,6 +606,17 @@ export default async function BookingDetailsPage({ params }) {
                           <div className="mt-3 flex flex-wrap gap-2">
                             <StatusBadge status={order.orderStatus} />
                             <StatusBadge status={order.paymentStatus} />
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                isCottageBill
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "bg-purple-50 text-purple-700"
+                              }`}
+                            >
+                              {isCottageBill
+                                ? "Cottage bill"
+                                : "Immediate payment"}
+                            </span>
                           </div>
                         </div>
 
@@ -635,14 +678,21 @@ export default async function BookingDetailsPage({ params }) {
                         )}
 
                         <div className="mt-4 space-y-1 border-t border-gray-100 pt-3">
-                          <DetailRow label="Food subtotal" amount={order.subtotal} />
+                          <DetailRow
+                            label="Food subtotal"
+                            amount={order.subtotal}
+                          />
                           <DetailRow
                             label="Discount"
                             amount={-(Number(order.discount) || 0)}
                             muted
                           />
                           <div className="mt-2 border-t border-gray-100 pt-2">
-                            <DetailRow label="Order total" amount={order.total} bold />
+                            <DetailRow
+                              label="Order total"
+                              amount={order.total}
+                              bold
+                            />
                           </div>
                         </div>
 
@@ -682,16 +732,17 @@ export default async function BookingDetailsPage({ params }) {
                             </p>
 
                             <p className="mt-1 text-xs leading-5 text-blue-700">
-                              Allocated from existing booking payments. This amount is not counted twice.
+                              Allocated from existing booking payments. This
+                              amount is not counted twice.
                             </p>
                           </div>
                         )}
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500">
                           <span>
-                            {order.paymentMode === "cottage_bill"
-                              ? "Added to cottage bill"
-                              : "Immediate payment"}
+                            {isCottageBill
+                              ? "Included in cottage account"
+                              : "Separate restaurant transaction"}
                           </span>
                           <span>
                             Received:{" "}
@@ -733,13 +784,27 @@ export default async function BookingDetailsPage({ params }) {
             )}
 
             <div className="mt-5 rounded-xl bg-[#234b3b]/5 p-4">
-              <DetailRow label="Total restaurant charges" amount={restaurantTotal} bold />
-              <DetailRow label="Direct restaurant payments" amount={restaurantPaymentsReceived} muted />
+              <DetailRow
+                label="Restaurant charges added to cottage bill"
+                amount={restaurantTotal}
+                bold
+              />
+              <DetailRow
+                label="Separate direct restaurant payments"
+                amount={restaurantPaymentsReceived}
+                muted
+              />
               <DetailRow
                 label="Covered by cottage checkout payments"
                 amount={restaurantCheckoutAllocations}
                 muted
               />
+
+              <p className="mt-2 border-t border-gray-200 pt-3 text-xs leading-5 text-gray-500">
+                Immediate restaurant payments are separate transactions. They
+                are displayed here for reference but are not included in the
+                accommodation account.
+              </p>
             </div>
           </section>
 
@@ -760,7 +825,10 @@ export default async function BookingDetailsPage({ params }) {
               <div className="mt-6">
                 <div className="relative space-y-5 before:absolute before:bottom-5 before:left-[15px] before:top-5 before:w-px before:bg-gray-200">
                   {paymentRecords.map((payment, index) => (
-                    <div key={payment.id || index} className="relative flex gap-4">
+                    <div
+                      key={payment.id || index}
+                      className="relative flex gap-4"
+                    >
                       <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50 text-emerald-700">
                         <CreditCard size={15} />
                       </div>
@@ -787,9 +855,18 @@ export default async function BookingDetailsPage({ params }) {
                         </div>
 
                         <div className="mt-4 grid gap-3 border-t border-gray-100 pt-3 sm:grid-cols-2">
-                          <InfoItem label="Payment method" value={payment.method} />
-                          <InfoItem label="Reference / Transaction ID" value={payment.reference} />
-                          <InfoItem label="Recorded by" value={payment.recordedBy} />
+                          <InfoItem
+                            label="Payment method"
+                            value={payment.method}
+                          />
+                          <InfoItem
+                            label="Reference / Transaction ID"
+                            value={payment.reference}
+                          />
+                          <InfoItem
+                            label="Recorded by"
+                            value={payment.recordedBy}
+                          />
                           <InfoItem label="Note" value={payment.note} />
                         </div>
                       </div>
@@ -821,8 +898,14 @@ export default async function BookingDetailsPage({ params }) {
                 label="Advance amount"
                 value={formatPrice(booking.paymentAmount)}
               />
-              <InfoItem label="Payment method" value={booking.paymentMethod} />
-              <InfoItem label="Transaction ID" value={booking.transactionId} />
+              <InfoItem
+                label="Payment method"
+                value={booking.paymentMethod}
+              />
+              <InfoItem
+                label="Transaction ID"
+                value={booking.transactionId}
+              />
               <InfoItem
                 label="Verified at"
                 value={formatDateTime(booking.paymentVerifiedAt)}
@@ -869,7 +952,7 @@ export default async function BookingDetailsPage({ params }) {
                 <h2 className="font-bold">Guest Account Statement</h2>
               </div>
               <p className="mt-1 text-xs text-white/70">
-                Complete cottage and restaurant bill.
+                Cottage and cottage-bill restaurant charges only.
               </p>
             </div>
 
@@ -879,8 +962,14 @@ export default async function BookingDetailsPage({ params }) {
               </p>
 
               <div className="mt-2">
-                <DetailRow label="Cottage accommodation" amount={cottageTotal} />
-                <DetailRow label="Restaurant orders" amount={restaurantTotal} />
+                <DetailRow
+                  label="Cottage accommodation"
+                  amount={cottageTotal}
+                />
+                <DetailRow
+                  label="Restaurant orders (cottage bill)"
+                  amount={restaurantTotal}
+                />
               </div>
 
               <div className="mt-2 border-t border-gray-200 pt-3">
@@ -890,37 +979,58 @@ export default async function BookingDetailsPage({ params }) {
               <div className="my-4 border-t border-dashed border-gray-200" />
 
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Payments received
+                Booking payments received
               </p>
 
               <div className="mt-2">
-                <DetailRow label="Verified advance" amount={verifiedAdvance} muted />
+                <DetailRow
+                  label="Verified advance"
+                  amount={verifiedAdvance}
+                  muted
+                />
                 <DetailRow
                   label="Additional booking payments"
                   amount={bookingAdditionalPayments}
                   muted
                 />
-                <DetailRow
-                  label="Direct restaurant payments"
-                  amount={restaurantPaymentsReceived}
-                  muted
-                />
               </div>
 
               <div className="mt-2 border-t border-gray-200 pt-3">
-                <DetailRow label="Total received" amount={totalReceived} bold />
+                <DetailRow
+                  label="Total received"
+                  amount={totalReceived}
+                  bold
+                />
               </div>
 
-              <div className={`mt-5 rounded-xl p-4 ${isFullyPaid ? "bg-emerald-50" : "bg-amber-50"}`}>
-                <p className={`text-xs font-semibold ${isFullyPaid ? "text-emerald-700" : "text-amber-700"}`}>
-                  {isFullyPaid ? "ACCOUNT FULLY SETTLED" : "OUTSTANDING BALANCE"}
+              <div
+                className={`mt-5 rounded-xl p-4 ${
+                  isFullyPaid ? "bg-emerald-50" : "bg-amber-50"
+                }`}
+              >
+                <p
+                  className={`text-xs font-semibold ${
+                    isFullyPaid ? "text-emerald-700" : "text-amber-700"
+                  }`}
+                >
+                  {isFullyPaid
+                    ? "ACCOUNT FULLY SETTLED"
+                    : "OUTSTANDING BALANCE"}
                 </p>
 
-                <p className={`mt-2 text-2xl font-bold tracking-tight ${isFullyPaid ? "text-emerald-800" : "text-amber-800"}`}>
+                <p
+                  className={`mt-2 text-2xl font-bold tracking-tight ${
+                    isFullyPaid ? "text-emerald-800" : "text-amber-800"
+                  }`}
+                >
                   {formatPrice(remaining)}
                 </p>
 
-                <div className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${isFullyPaid ? "text-emerald-700" : "text-amber-700"}`}>
+                <div
+                  className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${
+                    isFullyPaid ? "text-emerald-700" : "text-amber-700"
+                  }`}
+                >
                   {isFullyPaid ? (
                     <>
                       <CheckCircle2 size={14} />
@@ -934,6 +1044,21 @@ export default async function BookingDetailsPage({ params }) {
                   )}
                 </div>
               </div>
+
+              {restaurantPaymentsReceived > 0 && (
+                <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50 p-3">
+                  <p className="text-xs font-semibold text-purple-800">
+                    Separate restaurant payments
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-purple-900">
+                    {formatPrice(restaurantPaymentsReceived)}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-purple-700">
+                    These payments are not included in the cottage account
+                    balance.
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
@@ -945,7 +1070,8 @@ export default async function BookingDetailsPage({ params }) {
             </div>
 
             <p className="mt-2 text-sm leading-5 text-gray-500">
-              Record cash, bKash, Nagad or bank payments received from this guest.
+              Record cash, bKash, Nagad or bank payments received from this
+              guest for the cottage account.
             </p>
 
             {isCheckedOut ? (
@@ -955,7 +1081,8 @@ export default async function BookingDetailsPage({ params }) {
                   Guest checkout is complete.
                 </p>
                 <p className="mt-1 text-xs text-emerald-700">
-                  No further payments should be recorded through this booking page.
+                  No further payments should be recorded through this booking
+                  page.
                 </p>
               </div>
             ) : isFullyPaid ? (
@@ -971,7 +1098,9 @@ export default async function BookingDetailsPage({ params }) {
             ) : (
               <>
                 <div className="mt-4 rounded-xl bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Amount outstanding</p>
+                  <p className="text-xs text-gray-500">
+                    Amount outstanding
+                  </p>
                   <p className="mt-1 text-xl font-bold text-amber-700">
                     {formatPrice(remaining)}
                   </p>
@@ -983,10 +1112,8 @@ export default async function BookingDetailsPage({ params }) {
                     outstandingAmount={remaining}
                     canRecord={
                       booking.status === "confirmed" &&
-                      (
-                        booking.bookingSource === "front_desk" ||
-                        booking.paymentStatus === "verified"
-                      ) &&
+                      (booking.bookingSource === "front_desk" ||
+                        booking.paymentStatus === "verified") &&
                       remaining > 0 &&
                       !isCheckedOut
                     }
@@ -1007,14 +1134,15 @@ export default async function BookingDetailsPage({ params }) {
               </div>
 
               <p className="mt-2 text-xs leading-5 text-gray-600">
-                Match existing cottage checkout payments against restaurant orders. This does not record a new payment.
+                Match existing cottage checkout payments against cottage-bill
+                restaurant orders. This does not record a new payment.
               </p>
 
               <div className="mt-4">
                 <SyncRestaurantPayments
                   bookingId={booking._id.toString()}
                   canSync={canSynchronize && !isCheckedOut}
-                  orderCount={restaurantOrders.length}
+                  orderCount={billableRestaurantOrders.length}
                 />
               </div>
             </section>
@@ -1056,14 +1184,21 @@ export default async function BookingDetailsPage({ params }) {
                 </div>
 
                 <p className="mt-2 text-sm leading-5 text-gray-500">
-                  Complete the guest's departure after confirming the full cottage and restaurant bill is settled.
+              Complete the guest&apos;s departure after confirming the full
+                  cottage and cottage-bill restaurant account is settled.
                 </p>
 
                 <div className="mt-4 rounded-xl bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Outstanding balance</p>
-                  <p className={`mt-1 text-xl font-bold ${
-                    remaining <= 0 ? "text-emerald-700" : "text-amber-700"
-                  }`}>
+                  <p className="text-xs text-gray-500">
+                    Outstanding balance
+                  </p>
+                  <p
+                    className={`mt-1 text-xl font-bold ${
+                      remaining <= 0
+                        ? "text-emerald-700"
+                        : "text-amber-700"
+                    }`}
+                  >
                     {formatPrice(remaining)}
                   </p>
                 </div>
@@ -1076,7 +1211,8 @@ export default async function BookingDetailsPage({ params }) {
 
                 {booking.status === "confirmed" && remaining > 0 && (
                   <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                    Collect and record the outstanding payment before completing checkout.
+                    Collect and record the outstanding payment before
+                    completing checkout.
                   </p>
                 )}
 

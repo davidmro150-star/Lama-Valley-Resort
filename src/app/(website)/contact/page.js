@@ -112,11 +112,11 @@ export default function ContactPage() {
       <section className="px-5 py-16 sm:py-20">
         <div className="mx-auto max-w-3xl text-center">
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#a9804d]">
-            We're Here to Help
+          We&apos;re Here to Help
           </p>
 
           <h2 className="font-serif text-3xl font-bold sm:text-4xl">
-            Let's Plan Your Visit
+          Let&apos;s Plan Your Visit
           </h2>
 
           <p className="mt-6 leading-8 text-gray-600">

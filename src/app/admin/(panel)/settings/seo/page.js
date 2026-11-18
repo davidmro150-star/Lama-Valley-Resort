@@ -187,8 +187,8 @@ export default function SEOSettingsPage() {
           </h1>
 
           <p className="mt-1 text-sm text-gray-500">
-            Improve your resort website's visibility on Google and
-            social media.
+           Improve your resort website&apos;s visibility on Google and
+social media.
           </p>
         </div>
 
