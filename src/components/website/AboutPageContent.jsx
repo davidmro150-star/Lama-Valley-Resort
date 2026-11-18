@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -106,10 +107,13 @@ export default function AboutPageContent() {
       {/* PAGE HERO */}
       <section className="relative flex min-h-[480px] items-center bg-primary-dark">
         {content.heroImage && (
-          <img
+          <Image
             src={content.heroImage}
-            alt={content.heroImageAlt}
-            className="absolute inset-0 h-full w-full object-cover"
+            alt={content.heroImageAlt || "About page hero"}
+            fill
+            unoptimized
+            sizes="100vw"
+            className="object-cover"
           />
         )}
 
@@ -144,10 +148,13 @@ export default function AboutPageContent() {
           <div className="relative">
             <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-surface-muted">
               {content.introImage && (
-                <img
+                <Image
                   src={content.introImage}
-                  alt={content.introImageAlt}
-                  className="absolute inset-0 h-full w-full object-cover"
+                  alt={content.introImageAlt || "About Lama Valley"}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover"
                 />
               )}
             </div>
@@ -220,10 +227,13 @@ export default function AboutPageContent() {
           <div className="grid items-center gap-10 lg:grid-cols-2">
             <div className="relative aspect-[16/11] overflow-hidden rounded-xl bg-background">
               {content.locationImage && (
-                <img
+                <Image
                   src={content.locationImage}
-                  alt={content.locationImageAlt}
-                  className="absolute inset-0 h-full w-full object-cover"
+                  alt={content.locationImageAlt || "Lama Valley location"}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover"
                 />
               )}
             </div>

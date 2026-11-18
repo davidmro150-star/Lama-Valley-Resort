@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import {
   X,
@@ -17,19 +17,19 @@ export default function CottageGallery({ images, cottageName }) {
   const hasImages = images && images.length > 0;
   const imageCount = images?.length || 0;
 
-  const showPrevious = () => {
+  const showPrevious = useCallback(() => {
     setActiveImage((current) =>
       current === 0 ? imageCount - 1 : current - 1
     );
-  };
+  }, [imageCount]);
 
-  const showNext = () => {
+  const showNext = useCallback(() => {
     setActiveImage((current) =>
       current === imageCount - 1 ? 0 : current + 1
     );
-  };
+  }, [imageCount]);
 
-  // Keyboard navigation and Escape key
+  // Keyboard navigation and Escape key.
   useEffect(() => {
     if (!isLightboxOpen) return;
 
@@ -52,7 +52,7 @@ export default function CottageGallery({ images, cottageName }) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isLightboxOpen, imageCount]);
+  }, [isLightboxOpen, showPrevious, showNext]);
 
   if (!hasImages) {
     return (
@@ -65,7 +65,6 @@ export default function CottageGallery({ images, cottageName }) {
   return (
     <>
       <div className="space-y-4">
-
         {/* Main Image */}
         <div
           className="group relative aspect-[16/9] cursor-pointer overflow-hidden rounded-xl bg-surface-muted"

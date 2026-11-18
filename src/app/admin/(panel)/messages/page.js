@@ -23,6 +23,7 @@ export default function AdminMessagesPage() {
   const [actionLoading, setActionLoading] = useState("");
   const [feedback, setFeedback] = useState("");
 
+  // Used by Refresh and Try again buttons
   const fetchMessages = async () => {
     try {
       setLoading(true);
@@ -43,8 +44,39 @@ export default function AdminMessagesPage() {
     }
   };
 
+  // Initial messages loading
   useEffect(() => {
-    fetchMessages();
+    const controller = new AbortController();
+
+    async function loadMessages() {
+      try {
+        const response = await fetch("/api/admin/messages", {
+          signal: controller.signal,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load messages");
+        }
+
+        setMessages(data.messages || []);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError(err.message || "Something went wrong");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadMessages();
+
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   // Update message status

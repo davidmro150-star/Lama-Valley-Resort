@@ -1,4 +1,5 @@
 
+import Image from "next/image";
 import Link from "next/link";
 
 export default function Logo({
@@ -17,9 +18,12 @@ export default function Logo({
       className={`inline-flex items-center gap-3 ${className}`}
     >
       {logoUrl ? (
-        <img
+        <Image
           src={logoUrl}
           alt={logoAlt}
+          width={200}
+          height={48}
+          unoptimized
           className="h-12 w-auto max-w-[200px] object-contain"
         />
       ) : (

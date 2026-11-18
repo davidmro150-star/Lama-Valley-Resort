@@ -33,23 +33,21 @@ function StatCard({ title, value, description, icon: Icon, color }) {
     <div className="rounded-xl border border-[#eeece4] bg-white p-5 transition hover:shadow-md">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-[#777d73]">
-            {title}
-          </p>
+          <p className="text-sm font-medium text-[#777d73]">{title}</p>
 
           <h3 className="mt-3 text-2xl font-semibold tracking-tight text-[#252a25]">
             {value}
           </h3>
         </div>
 
-        <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${color}`}>
+        <div
+          className={`flex h-11 w-11 items-center justify-center rounded-xl ${color}`}
+        >
           <Icon size={21} strokeWidth={1.8} />
         </div>
       </div>
 
-      <p className="mt-4 text-xs text-[#92998f]">
-        {description}
-      </p>
+      <p className="mt-4 text-xs text-[#92998f]">{description}</p>
     </div>
   );
 }
@@ -65,19 +63,16 @@ function TrendChart({ title, description, data, dataKey, formatter }) {
   return (
     <div className="rounded-xl border border-[#eeece4] bg-white p-5">
       <div className="mb-6">
-        <h3 className="font-semibold text-[#303a32]">
-          {title}
-        </h3>
+        <h3 className="font-semibold text-[#303a32]">{title}</h3>
 
-        <p className="mt-1 text-xs text-[#92998f]">
-          {description}
-        </p>
+        <p className="mt-1 text-xs text-[#92998f]">{description}</p>
       </div>
 
       <div className="flex h-48 items-end gap-1 border-b border-l border-[#eeece4] px-2">
-        {data.map((item, index) => {
+        {data.map((item) => {
           const value = Number(item[dataKey]) || 0;
-          const height = value > 0 ? Math.max(3, (value / maximum) * 100) : 0;
+          const height =
+            value > 0 ? Math.max(3, (value / maximum) * 100) : 0;
 
           return (
             <div
@@ -100,13 +95,13 @@ function TrendChart({ title, description, data, dataKey, formatter }) {
       </div>
 
       <div className="mt-3 flex justify-between gap-1 text-[9px] text-[#92998f]">
-        {data.map((item, index) => (
+        {data.map((item, index) =>
           index % labelStep === 0 || index === data.length - 1 ? (
             <span key={item.date} className="truncate">
               {item.date.slice(5)}
             </span>
           ) : null
-        ))}
+        )}
       </div>
     </div>
   );
@@ -158,8 +153,48 @@ export default function DashboardAnalytics() {
     }
   }
 
+  // Load the initial monthly analytics.
   useEffect(() => {
-    loadAnalytics("month");
+    const controller = new AbortController();
+
+    async function fetchInitialAnalytics() {
+      try {
+        const response = await fetch(
+          "/api/admin/dashboard/analytics?period=month",
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || "Unable to load dashboard reports."
+          );
+        }
+
+        if (!controller.signal.aborted) {
+          setData(result);
+          setError("");
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          setError(err.message || "Something went wrong.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchInitialAnalytics();
+
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   function handlePeriodChange(value) {
@@ -459,9 +494,7 @@ export default function DashboardAnalytics() {
           {/* Paid and unpaid accommodation */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-[#eeece4] bg-white p-5">
-              <p className="text-sm text-[#777d73]">
-                Fully Paid Bookings
-              </p>
+              <p className="text-sm text-[#777d73]">Fully Paid Bookings</p>
 
               <h3 className="mt-2 text-2xl font-semibold text-emerald-700">
                 {bookings.paid}

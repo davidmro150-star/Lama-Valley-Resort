@@ -21,7 +21,7 @@ export default function RestaurantMenuCard({ item, category }) {
 
         {item.isFeatured && (
           <span className="absolute left-4 top-4 rounded-full bg-[#c49a62] px-4 py-2 text-xs font-semibold text-white">
-            Chef's Special
+            Chef&apos;s Special
           </span>
         )}
       </div>

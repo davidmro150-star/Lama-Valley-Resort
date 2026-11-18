@@ -79,7 +79,7 @@ export default function ContactForm() {
         </p>
 
         <h2 className="font-serif text-3xl font-bold text-[#173729]">
-          We'd Love to Hear From You
+          We&apos;d Love to Hear From You
         </h2>
 
         <p className="mt-3 text-sm leading-7 text-gray-500">

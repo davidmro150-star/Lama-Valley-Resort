@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 const initialForm = {
   name: "",
@@ -37,14 +38,44 @@ export default function AdminPackagesPage() {
 
       setPackages(data.packages || []);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Failed to load packages.");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    fetchPackages();
+    const controller = new AbortController();
+
+    async function loadPackages() {
+      try {
+        const response = await fetch("/api/admin/packages", {
+          signal: controller.signal,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load packages.");
+        }
+
+        setPackages(data.packages || []);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setMessage(error.message || "Failed to load packages.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadPackages();
+
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   function handleChange(event) {
@@ -182,7 +213,7 @@ export default function AdminPackagesPage() {
       resetForm();
       await fetchPackages();
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Failed to save package.");
     } finally {
       setSaving(false);
     }
@@ -211,7 +242,7 @@ export default function AdminPackagesPage() {
       setMessage("Package deleted successfully.");
       await fetchPackages();
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Failed to delete package.");
     }
   }
 
@@ -238,7 +269,7 @@ export default function AdminPackagesPage() {
 
       await fetchPackages();
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Failed to update status.");
     }
   }
 
@@ -259,7 +290,6 @@ export default function AdminPackagesPage() {
         </div>
       )}
 
-      {/* Package Form */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="mb-5 text-lg font-semibold text-gray-900">
           {editingId ? "Edit Package" : "Add New Package"}
@@ -284,7 +314,8 @@ export default function AdminPackagesPage() {
 
             <p className="mt-1 text-xs text-gray-500">
               JPG, PNG, WebP or AVIF.
-              {editingId && " Select a new image only if you want to replace the current one."}
+              {editingId &&
+                " Select a new image only if you want to replace the current one."}
             </p>
           </div>
 
@@ -471,7 +502,6 @@ export default function AdminPackagesPage() {
         </form>
       </section>
 
-      {/* Existing Packages */}
       <section>
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -504,9 +534,12 @@ export default function AdminPackagesPage() {
                 className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
               >
                 {packageItem.imageUrl ? (
-                  <img
+                  <Image
                     src={packageItem.imageUrl}
                     alt={packageItem.name}
+                    width={800}
+                    height={520}
+                    unoptimized
                     className="h-52 w-full object-cover"
                   />
                 ) : (

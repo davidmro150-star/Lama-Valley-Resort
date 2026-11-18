@@ -2,6 +2,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { ImagePlus, Upload, X, RefreshCw } from "lucide-react";
 
 export default function ImageUploader({
@@ -83,9 +84,12 @@ export default function ImageUploader({
 
       {value ? (
         <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-          <img
+          <Image
             src={value}
             alt={alt || label}
+            width={1200}
+            height={600}
+            unoptimized
             className="h-56 w-full object-cover"
           />
 

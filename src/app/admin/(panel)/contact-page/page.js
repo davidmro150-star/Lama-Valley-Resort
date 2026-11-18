@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import {
   Save,
   RefreshCw,
@@ -37,7 +38,8 @@ export default function ContactPageEditor() {
     message: "",
   });
 
-  const fetchSettings = async () => {
+  // Used by the Reload button
+  const fetchSettings = useCallback(async () => {
     try {
       setLoading(true);
       setFeedback({ type: "", message: "" });
@@ -56,15 +58,54 @@ export default function ContactPageEditor() {
     } catch (error) {
       setFeedback({
         type: "error",
-        message: error.message || "Failed to load Contact Page settings.",
+        message:
+          error.message || "Failed to load Contact Page settings.",
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial settings load
   useEffect(() => {
-    fetchSettings();
+    let isMounted = true;
+
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/admin/contact-page");
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load settings");
+        }
+
+        if (isMounted) {
+          setForm({
+            ...initialForm,
+            ...data.settings,
+          });
+        }
+      } catch (error) {
+        if (isMounted) {
+          setFeedback({
+            type: "error",
+            message:
+              error.message ||
+              "Failed to load Contact Page settings.",
+          });
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadSettings();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleChange = (event) => {
@@ -230,9 +271,12 @@ export default function ContactPageEditor() {
 
               {form.heroImage && (
                 <div className="mt-4">
-                  <img
+                  <Image
                     src={form.heroImage}
                     alt="Contact page hero preview"
+                    width={1200}
+                    height={480}
+                    unoptimized
                     className="h-48 w-full rounded-xl object-cover"
                   />
                 </div>

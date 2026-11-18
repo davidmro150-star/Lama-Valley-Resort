@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   ImagePlus,
@@ -70,7 +71,10 @@ export default function EditCottageForm({ cottage }) {
     setError("");
     setSuccess("");
 
-    if (existingImages.length + files.length + selectedFiles.length > MAX_IMAGES) {
+    if (
+      existingImages.length + files.length + selectedFiles.length >
+      MAX_IMAGES
+    ) {
       setError(`You can keep a maximum of ${MAX_IMAGES} images.`);
       event.target.value = "";
       return;
@@ -408,9 +412,12 @@ export default function EditCottageForm({ cottage }) {
                     key={`${image}-${index}`}
                     className="relative overflow-hidden rounded-lg border border-gray-200"
                   >
-                    <img
+                    <Image
                       src={image}
                       alt={`Cottage image ${index + 1}`}
+                      width={400}
+                      height={300}
+                      unoptimized
                       className="h-36 w-full object-cover"
                     />
 
@@ -472,9 +479,12 @@ export default function EditCottageForm({ cottage }) {
                     key={item.id}
                     className="relative overflow-hidden rounded-lg border border-gray-200"
                   >
-                    <img
+                    <Image
                       src={item.preview}
                       alt={item.file.name}
+                      width={400}
+                      height={300}
+                      unoptimized
                       className="h-36 w-full object-cover"
                     />
 

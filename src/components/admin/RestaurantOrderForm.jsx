@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Printer, AlertCircle, CheckCircle2 } from "lucide-react";
 
 function getDhakaToday() {
@@ -336,12 +337,11 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
       createdOrderNumber = data.order.orderNumber || "";
 
       // STEP 2: Cottage bill orders are saved without immediate payment.
-      // Use a full browser navigation to avoid client-side routing issues.
       if (
         orderType === "cottage" &&
         cottagePaymentChoice === "cottage_bill"
       ) {
-        window.location.href = "/admin/restaurant/orders";
+        router.push("/admin/restaurant/orders");
         return;
       }
 
@@ -376,8 +376,9 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
       }
 
       // STEP 4: Open the separate paid restaurant receipt.
-      window.location.href =
-        `/admin/restaurant/orders/${createdOrderId}/receipt`;
+      router.push(
+        `/admin/restaurant/orders/${createdOrderId}/receipt`
+      );
     } catch (err) {
       setError(err.message || "Something went wrong.");
 
@@ -662,11 +663,11 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
               <span>
                 <span className="block text-sm font-semibold text-gray-900">
                   Add to Cottage Bill
-                  Add the restaurant charges to the guest&apos;s accommodation
                 </span>
 
                 <span className="mt-1 block text-xs leading-5 text-gray-500">
-                  The complete restaurant order will be added to the guest&apos;s cottage bill and settled at final checkout.
+                  Add the restaurant charges to the guest&apos;s cottage
+                  bill and settle them at final checkout.
                 </span>
               </span>
             </label>
@@ -961,12 +962,12 @@ export default function RestaurantOrderForm({ menuItems = [] }) {
       )}
 
       {paymentRecoveryUrl && (
-        <a
+        <Link
           href={paymentRecoveryUrl}
           className="block rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
         >
           Open Order Details to Complete Payment
-        </a>
+        </Link>
       )}
 
       {/* Submit */}

@@ -2,7 +2,7 @@
 import Image from "next/image";
 import connectDB from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
-
+import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 const siteUrl = (
@@ -217,12 +217,12 @@ export default async function GalleryPage() {
           We look forward to welcoming you.
         </p>
 
-        <a
-          href="/stays"
-          className="mt-8 inline-flex rounded-full bg-[#c49a62] px-8 py-4 text-sm font-semibold text-white transition hover:bg-[#a9804d]"
-        >
-          Book Your Stay
-        </a>
+      <Link
+  href="/stays"
+  className="mt-8 inline-flex rounded-full bg-[#c49a62] px-8 py-4 text-sm font-semibold text-white transition hover:bg-[#a9804d]"
+>
+  Book Your Stay
+    </Link>  
       </section>
     </main>
   );

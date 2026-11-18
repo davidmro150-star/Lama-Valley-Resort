@@ -1,6 +1,6 @@
 
 "use client";
-
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -154,13 +154,13 @@ export default function RestaurantOrderDetails({ order }) {
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
         <div>
-          <a
+          <Link
             href="/admin/restaurant/orders"
             className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-[#426b55] transition hover:text-[#173729]"
           >
             <ArrowLeft size={16} />
             Back to Restaurant Orders
-          </a>
+          </Link>
 
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[#173729]">

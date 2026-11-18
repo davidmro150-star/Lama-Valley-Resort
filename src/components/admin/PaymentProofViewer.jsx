@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Eye, X, Loader2, AlertCircle } from "lucide-react";
 
 export default function PaymentProofViewer({ bookingId }) {
@@ -91,11 +92,16 @@ export default function PaymentProofViewer({ bookingId }) {
             )}
 
             {imageUrl && (
-              <img
-                src={imageUrl}
-                alt="Guest payment screenshot"
-                className="mx-auto max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
-              />
+              <div className="relative mx-auto h-[70vh] w-full max-w-full">
+                <Image
+                  src={imageUrl}
+                  alt="Guest payment screenshot"
+                  fill
+                  unoptimized
+                  sizes="(max-width: 768px) 100vw, 672px"
+                  className="rounded-lg object-contain"
+                />
+              </div>
             )}
 
             <p className="mt-4 text-center text-[11px] text-gray-400">

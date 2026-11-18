@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 const categories = [
   "Nature",
@@ -48,7 +49,36 @@ export default function AdminGalleryPage() {
   }
 
   useEffect(() => {
-    fetchImages();
+    let isMounted = true;
+
+    async function loadImages() {
+      try {
+        const response = await fetch("/api/admin/gallery");
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load gallery.");
+        }
+
+        if (isMounted) {
+          setImages(data.images || []);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setMessage(error.message || "Failed to load gallery.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadImages();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   function handleChange(event) {
@@ -416,9 +446,12 @@ export default function AdminGalleryPage() {
                 key={image._id}
                 className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
               >
-                <img
+                <Image
                   src={image.imageUrl}
                   alt={image.title || "Resort gallery"}
+                  width={800}
+                  height={520}
+                  unoptimized
                   className="h-52 w-full object-cover"
                 />
 

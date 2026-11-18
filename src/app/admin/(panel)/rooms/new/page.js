@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ImagePlus, Loader2, X } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_IMAGES = 20;
@@ -69,7 +70,9 @@ export default function NewCottagePage() {
       (file) =>
         !["image/jpeg", "image/png", "image/webp", "image/avif"].includes(
           file.type
-        ) || file.size > MAX_FILE_SIZE || file.size === 0
+        ) ||
+        file.size > MAX_FILE_SIZE ||
+        file.size === 0
     );
 
     if (invalidFile) {
@@ -138,7 +141,11 @@ export default function NewCottagePage() {
       return;
     }
 
-    if (form.price === "" || Number(form.price) < 0 || !Number.isFinite(Number(form.price))) {
+    if (
+      form.price === "" ||
+      Number(form.price) < 0 ||
+      !Number.isFinite(Number(form.price))
+    ) {
       setError("Please enter a valid cottage price.");
       return;
     }
@@ -383,9 +390,12 @@ export default function NewCottagePage() {
                   key={item.id}
                   className="group relative overflow-hidden rounded-lg border border-gray-200"
                 >
-                  <img
+                  <Image
                     src={item.preview}
                     alt={item.file.name}
+                    width={400}
+                    height={300}
+                    unoptimized
                     className="h-36 w-full object-cover"
                   />
 

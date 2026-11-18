@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -207,7 +207,8 @@ export default function GuestManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadGuests = async () => {
+  // Used by the Refresh button
+  const loadGuests = useCallback(async () => {
     if (!selectedDate) return;
 
     try {
@@ -232,10 +233,50 @@ export default function GuestManagementPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]);
 
+  // Initial load and selected-date changes
   useEffect(() => {
-    loadGuests();
+    if (!selectedDate) return;
+
+    const controller = new AbortController();
+
+    async function fetchGuests() {
+      try {
+        setError("");
+
+        const response = await fetch(
+          `/api/admin/guests?date=${selectedDate}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || "Could not load guests.");
+        }
+
+        setGuests(data.guests || []);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError(err.message || "Something went wrong.");
+          setGuests([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchGuests();
+
+    return () => {
+      controller.abort();
+    };
   }, [selectedDate]);
 
   const filteredGuests = useMemo(() => {
@@ -350,9 +391,10 @@ export default function GuestManagementPage() {
               <input
                 type="date"
                 value={selectedDate}
-                onChange={(event) =>
-                  setSelectedDate(event.target.value)
-                }
+                onChange={(event) => {
+                  setLoading(true);
+                  setSelectedDate(event.target.value);
+                }}
                 className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#074E37]"
               />
             </div>

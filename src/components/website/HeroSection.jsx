@@ -43,17 +43,31 @@ export default function HeroSection() {
       ? content.heroSlides
       : defaultContent.heroSlides;
 
-  // Load homepage content from MongoDB
+  // Keep the active slide within the available image range.
+  const activeIndex = Math.min(
+    activeSlide,
+    Math.max(heroImages.length - 1, 0)
+  );
+
+  // Load homepage content from MongoDB.
   useEffect(() => {
-    const fetchHomePage = async () => {
+    const controller = new AbortController();
+
+    async function fetchHomePage() {
       try {
         const response = await fetch("/api/home-page", {
           cache: "no-store",
+          signal: controller.signal,
         });
 
         const data = await response.json();
 
-        if (response.ok && data.success && data.homePage) {
+        if (
+          response.ok &&
+          data.success &&
+          data.homePage &&
+          !controller.signal.aborted
+        ) {
           setContent({
             ...defaultContent,
             ...data.homePage,
@@ -61,19 +75,20 @@ export default function HeroSection() {
           });
         }
       } catch (error) {
-        console.error("Failed to load homepage content:", error);
+        if (!controller.signal.aborted) {
+          console.error("Failed to load homepage content:", error);
+        }
       }
-    };
+    }
 
     fetchHomePage();
+
+    return () => {
+      controller.abort();
+    };
   }, []);
 
-  // Keep active slide within the available image range
-  useEffect(() => {
-    setActiveSlide(0);
-  }, [content.heroSlides]);
-
-  // Automatic slider
+  // Automatic slider.
   useEffect(() => {
     if (heroImages.length <= 1) return;
 
@@ -100,12 +115,12 @@ export default function HeroSection() {
       {heroImages.map((image, index) => (
         <div
           key={image._id || image.image || index}
-          className={`absolute inset-0 transition-opacity duration-1000 ${activeSlide === index ? "opacity-100" : "opacity-0"
+          className={`absolute inset-0 transition-opacity duration-1000 ${activeIndex === index ? "opacity-100" : "opacity-0"
             }`}
         >
           <Image
             src={image.image}
-            alt={activeSlide === index ? image.alt || "" : ""}
+            alt={activeIndex === index ? image.alt || "" : ""}
             fill
             priority={index === 0}
             sizes="100vw"
@@ -173,8 +188,8 @@ export default function HeroSection() {
                 type="button"
                 onClick={() => setActiveSlide(index)}
                 aria-label={`Go to slide ${index + 1}`}
-                aria-current={activeSlide === index ? "true" : undefined}
-                className={`h-2 rounded-full transition-all duration-300 ${activeSlide === index
+                aria-current={activeIndex === index ? "true" : undefined}
+                className={`h-2 rounded-full transition-all duration-300 ${activeIndex === index
                     ? "w-7 bg-accent"
                     : "w-2 bg-white/60 hover:bg-white"
                   }`}

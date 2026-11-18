@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Printer, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -123,9 +124,12 @@ export default function RestaurantReceiptPrint({ order, settings }) {
       <div className="restaurant-receipt mx-auto w-full max-w-[320px] bg-white px-4 py-5 text-gray-900 shadow-sm">
         <header className="border-b border-dashed border-gray-400 pb-4 text-center">
           {settings?.logoUrl && (
-            <img
+            <Image
               src={settings.logoUrl}
               alt={settings.resortName || "Resort logo"}
+              width={130}
+              height={64}
+              unoptimized
               className="mx-auto mb-2 max-h-16 max-w-[130px] object-contain"
             />
           )}
@@ -294,8 +298,8 @@ export default function RestaurantReceiptPrint({ order, settings }) {
             ))
           ) : isCottageOrder ? (
             <p className="text-gray-500">
-                This order will be settled with the guest&apos;s cottage bill at
-                checkout.
+              This order will be settled with the guest&apos;s cottage bill at
+              checkout.
             </p>
           ) : (
             <p className="text-gray-500">No payment recorded.</p>

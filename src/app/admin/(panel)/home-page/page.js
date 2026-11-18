@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   Plus,
   Trash2,
@@ -36,6 +37,7 @@ export default function HomePageEditor() {
 
   const fileInputRefs = useRef({});
 
+  // Used by the Reload button
   const fetchHomePage = async () => {
     try {
       setLoading(true);
@@ -57,14 +59,50 @@ export default function HomePageEditor() {
         heroSlides: data.homePage.heroSlides || [],
       });
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to load homepage.");
     } finally {
       setLoading(false);
     }
   };
 
+  // Initial homepage data loading
   useEffect(() => {
-    fetchHomePage();
+    const controller = new AbortController();
+
+    async function loadHomePage() {
+      try {
+        const response = await fetch("/api/admin/home-page", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load homepage.");
+        }
+
+        setForm({
+          ...initialForm,
+          ...data.homePage,
+          heroSlides: data.homePage.heroSlides || [],
+        });
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError(err.message || "Failed to load homepage.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadHomePage();
+
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   const handleChange = (e) => {
@@ -92,6 +130,7 @@ export default function HomePageEditor() {
     }
 
     setError("");
+
     setForm((previous) => ({
       ...previous,
       heroSlides: [...previous.heroSlides, { image: "", alt: "" }],
@@ -153,7 +192,7 @@ export default function HomePageEditor() {
 
       setMessage(`Slide ${index + 1} image uploaded successfully.`);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Image upload failed.");
     } finally {
       setUploadingIndex(null);
 
@@ -207,7 +246,7 @@ export default function HomePageEditor() {
         heroSlides: data.homePage.heroSlides || [],
       });
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to save homepage.");
     } finally {
       setSaving(false);
     }
@@ -489,9 +528,12 @@ export default function HomePageEditor() {
                         Image Preview
                       </p>
 
-                      <img
+                      <Image
                         src={slide.image}
                         alt={slide.alt || `Hero slide ${index + 1}`}
+                        width={1200}
+                        height={480}
+                        unoptimized
                         className="h-48 w-full rounded-lg object-cover"
                       />
                     </div>
