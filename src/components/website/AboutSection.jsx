@@ -3,18 +3,46 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
-export default function AboutSection() {
+import connectDB from "@/lib/mongodb";
+import AboutPage from "@/models/Aboutpage";
+
+export default async function AboutSection() {
+  let aboutPage = null;
+
+  try {
+    await connectDB();
+
+    aboutPage = await AboutPage.findOne()
+      .select("introImage introImageAlt")
+      .lean();
+  } catch (error) {
+    console.error("Homepage About image error:", error);
+  }
+
+  const imageUrl = aboutPage?.introImage;
+  const imageAlt =
+    aboutPage?.introImageAlt ||
+    "Lama Valley Resort surrounded by natural scenery";
+
   return (
     <section className="section-padding bg-background">
       <div className="container grid items-center gap-14 lg:grid-cols-2 lg:gap-20">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-xl">
-          <Image
-            src="https://images.unsplash.com/photo-1510798831971-661eb04b3739"
-            alt="Wooden cottage surrounded by nature"
-            fill
-            sizes="(max-width: 1024px) 100vw, 50vw"
-            className="object-cover"
-          />
+        <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-surface-muted">
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={imageAlt}
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-center text-muted">
+              <p className="p-6">
+                Upload an Introduction Image from the Admin Dashboard.
+              </p>
+            </div>
+          )}
         </div>
 
         <div>
