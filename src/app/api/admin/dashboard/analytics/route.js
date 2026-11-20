@@ -1,7 +1,8 @@
 
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth";
+import { authorizeApiRequest } from "@/lib/authorize";
+import { PERMISSIONS } from "@/lib/permissions";
 import connectDB from "@/lib/mongodb";
 import Booking from "@/models/booking";
 import RestaurantOrder from "@/models/RestaurantOrder";
@@ -196,16 +197,12 @@ function emptyMethods() {
 
 export async function GET(request) {
   try {
-    const session = await auth();
+    const { user, response } = await authorizeApiRequest(
+      PERMISSIONS.FINANCIAL_REPORTS_VIEW
+    );
 
-    if (session?.user?.role !== "admin") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Unauthorized access.",
-        },
-        { status: 401 }
-      );
+    if (response) {
+      return response;
     }
 
     const { searchParams } = new URL(request.url);

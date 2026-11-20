@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+
 import {
   Eye,
   EyeOff,
@@ -27,18 +28,22 @@ export default function AdminLoginPage() {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    if (loading) return;
+
     setError("");
     setLoading(true);
 
     try {
       const result = await signIn("credentials", {
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         redirect: false,
       });
 
       if (!result || result.error) {
-        setError("Invalid email or password. Please try again.");
+        setError(
+          "Invalid email or password, or your account is inactive. Please try again."
+        );
         setLoading(false);
         return;
       }
@@ -46,16 +51,18 @@ export default function AdminLoginPage() {
       router.replace("/admin/dashboard");
       router.refresh();
     } catch (error) {
-      console.error("Admin login error:", error);
+      console.error("Admin/Manager login error:", error);
+
       setError("Something went wrong. Please try again.");
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f5ef] flex items-center justify-center px-4 py-10">
+    <main className="flex min-h-screen items-center justify-center bg-[#f7f5ef] px-4 py-10">
       <div className="w-full max-w-[1050px] overflow-hidden rounded-2xl border border-[#e8e4da] bg-white shadow-[0_20px_70px_rgba(35,75,59,0.10)]">
         <div className="grid md:grid-cols-2">
+
           {/* Brand Panel */}
           <div className="relative hidden min-h-[650px] flex-col justify-between overflow-hidden bg-[#173729] p-12 text-white md:flex">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(196,154,98,0.22),transparent_35%),radial-gradient(circle_at_10%_90%,rgba(66,107,85,0.55),transparent_45%)]" />
@@ -70,6 +77,7 @@ export default function AdminLoginPage() {
                   <h1 className="font-serif text-xl font-semibold tracking-wide">
                     LAMA VALLEY
                   </h1>
+
                   <p className="mt-0.5 text-[10px] tracking-[0.28em] text-white/60">
                     RESORT & RESTAURANT
                   </p>
@@ -90,8 +98,9 @@ export default function AdminLoginPage() {
                 </h2>
 
                 <p className="mt-6 text-sm leading-7 text-white/65">
-                  Welcome to the resort management portal. Manage
-                  reservations and keep your operations organized
+                  Welcome to the resort management portal.
+                  Manage reservations, coordinate your team,
+                  and keep your resort operations organized
                   from one place.
                 </p>
               </div>
@@ -106,13 +115,14 @@ export default function AdminLoginPage() {
 
           {/* Login Form */}
           <div className="flex min-h-[650px] flex-col justify-center px-6 py-12 sm:px-12 lg:px-14">
+
             <div className="mb-10">
               <div className="mb-7 flex h-12 w-12 items-center justify-center rounded-xl bg-[#edf2ed] text-[#234b3b] md:hidden">
                 <Mountain size={25} />
               </div>
 
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#a47d4d]">
-                Admin Portal
+                Administration Portal
               </p>
 
               <h2 className="mt-3 font-serif text-3xl font-semibold text-[#252a25]">
@@ -120,12 +130,13 @@ export default function AdminLoginPage() {
               </h2>
 
               <p className="mt-3 text-sm leading-6 text-[#777d73]">
-                Sign in with your administrator credentials to
-                access the management dashboard.
+                Sign in with your Admin or Manager credentials
+                to access the resort management dashboard.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+
               {/* Email */}
               <div>
                 <label
@@ -143,12 +154,15 @@ export default function AdminLoginPage() {
 
                   <input
                     id="email"
+                    name="email"
                     type="email"
                     autoComplete="username"
+                    autoFocus
                     required
+                    maxLength={254}
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="admin@example.com"
+                    placeholder="Enter your email address"
                     className="h-12 w-full rounded-lg border border-[#e5e5dc] bg-[#fcfcfa] pl-11 pr-4 text-sm text-[#252a25] outline-none transition placeholder:text-[#a5aaa1] focus:border-[#426b55] focus:ring-2 focus:ring-[#426b55]/10"
                   />
                 </div>
@@ -156,14 +170,12 @@ export default function AdminLoginPage() {
 
               {/* Password */}
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label
-                    htmlFor="password"
-                    className="block text-sm font-medium text-[#303a32]"
-                  >
-                    Password
-                  </label>
-                </div>
+                <label
+                  htmlFor="password"
+                  className="mb-2 block text-sm font-medium text-[#303a32]"
+                >
+                  Password
+                </label>
 
                 <div className="relative">
                   <LockKeyhole
@@ -173,9 +185,11 @@ export default function AdminLoginPage() {
 
                   <input
                     id="password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
+                    maxLength={128}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="Enter your password"
@@ -184,8 +198,11 @@ export default function AdminLoginPage() {
 
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((previous) => !previous)}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    aria-pressed={showPassword}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-[#92998f] transition hover:text-[#234b3b]"
                   >
                     {showPassword ? (
@@ -201,7 +218,8 @@ export default function AdminLoginPage() {
               {error && (
                 <div
                   role="alert"
-                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                  aria-live="polite"
+                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700"
                 >
                   {error}
                 </div>
@@ -210,12 +228,15 @@ export default function AdminLoginPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !email.trim() || !password}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#234b3b] px-5 text-sm font-semibold text-white transition hover:bg-[#173729] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
                   <>
-                    <LoaderCircle size={18} className="animate-spin" />
+                    <LoaderCircle
+                      size={18}
+                      className="animate-spin"
+                    />
                     Signing in...
                   </>
                 ) : (
@@ -227,6 +248,7 @@ export default function AdminLoginPage() {
               </button>
             </form>
 
+            {/* Footer */}
             <div className="mt-10 border-t border-[#eeece4] pt-6">
               <Link
                 href="/"
