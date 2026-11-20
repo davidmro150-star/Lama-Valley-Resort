@@ -1,5 +1,7 @@
 
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
+
 import connectDB from "@/lib/mongodb";
 
 import Cottage from "@/models/Cottage";
@@ -8,7 +10,7 @@ import BookingSettings from "@/models/BookingSettings";
 
 import { ApiError, asyncHandler } from "@/lib/apiError";
 
-// Get today's date in Bangladesh
+// Get today's date in Bangladesh.
 function getBangladeshDate() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dhaka",
@@ -18,9 +20,12 @@ function getBangladeshDate() {
   }).format(new Date());
 }
 
-// Validate YYYY-MM-DD and reject impossible dates
+// Validate YYYY-MM-DD and reject impossible dates.
 function isValidDate(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value)
+  ) {
     return false;
   }
 
@@ -57,7 +62,7 @@ export const POST = asyncHandler(async (request) => {
     paymentProof,
   } = body || {};
 
-  // 1. Validate required booking information
+  // 1. Validate required booking information.
   if (
     !cottageSlug ||
     !guestName ||
@@ -67,10 +72,13 @@ export const POST = asyncHandler(async (request) => {
     !checkOut ||
     guests === undefined
   ) {
-    throw new ApiError(400, "Please provide all required booking information.");
+    throw new ApiError(
+      400,
+      "Please provide all required booking information."
+    );
   }
 
-  // 2. Validate guest information
+  // 2. Validate guest information.
   const name = String(guestName).trim();
   const email = String(guestEmail).trim().toLowerCase();
   const phone = String(guestPhone).trim();
@@ -96,7 +104,7 @@ export const POST = asyncHandler(async (request) => {
     throw new ApiError(400, "Please enter a valid phone number.");
   }
 
-  // 3. Validate dates
+  // 3. Validate dates.
   if (!isValidDate(checkIn) || !isValidDate(checkOut)) {
     throw new ApiError(400, "Please select valid booking dates.");
   }
@@ -109,14 +117,22 @@ export const POST = asyncHandler(async (request) => {
     throw new ApiError(400, "Check-out must be after check-in.");
   }
 
-  // 4. Validate guest count
+  const startDate = new Date(`${checkIn}T00:00:00.000Z`);
+  const endDate = new Date(`${checkOut}T00:00:00.000Z`);
+
+  const nights = Math.round(
+    (endDate.getTime() - startDate.getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  // 4. Validate guest count.
   const guestCount = Number(guests);
 
   if (!Number.isInteger(guestCount) || guestCount < 1) {
     throw new ApiError(400, "Please select a valid number of guests.");
   }
 
-  // 5. Load admin booking settings
+  // 5. Load admin booking settings.
   const settings = await BookingSettings.findOne().lean();
 
   if (!settings || settings.bookingEnabled !== true) {
@@ -132,7 +148,7 @@ export const POST = asyncHandler(async (request) => {
     throw new ApiError(500, "Booking payment settings are incomplete.");
   }
 
-  // 6. Validate selected payment method
+  // 6. Validate selected payment method.
   const method = paymentMethod;
 
   if (!["bkash", "nagad", "bank"].includes(method)) {
@@ -167,11 +183,15 @@ export const POST = asyncHandler(async (request) => {
     );
   }
 
-  // 7. Validate payment information
+  // 7. Validate payment information.
   const amount = Number(paymentAmount);
   const reference = String(transactionId || "").trim();
 
-  if (!Number.isFinite(amount) || amount <= 0) {
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    Math.round(amount * 100) !== amount * 100
+  ) {
     throw new ApiError(400, "Please enter a valid payment amount.");
   }
 
@@ -189,51 +209,7 @@ export const POST = asyncHandler(async (request) => {
     throw new ApiError(400, "Please upload your payment screenshot.");
   }
 
-  // 8. Find the cottage
-  const cottage = await Cottage.findOne({
-    slug: cottageSlug,
-    isActive: true,
-  });
-
-  if (!cottage) {
-    throw new ApiError(404, "This cottage is currently unavailable.");
-  }
-
-  if (guestCount > cottage.capacity) {
-    throw new ApiError(
-      400,
-      `This cottage allows a maximum of ${cottage.capacity} guests.`
-    );
-  }
-
-  // 9. Calculate total price on the server
-  const startDate = new Date(`${checkIn}T00:00:00.000Z`);
-  const endDate = new Date(`${checkOut}T00:00:00.000Z`);
-
-  const nights = Math.round(
-    (endDate.getTime() - startDate.getTime()) /
-      (1000 * 60 * 60 * 24)
-  );
-
-  const totalPrice = cottage.price * nights;
-
-  if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
-    throw new ApiError(400, "Unable to calculate the booking price.");
-  }
-
-  // 10. Calculate the required advance payment
-  const requiredAdvance = Math.round(
-    (totalPrice * advancePercentage) / 100
-  );
-
-  if (amount !== requiredAdvance) {
-    throw new ApiError(
-      400,
-      `The required advance payment is ৳${requiredAdvance}.`
-    );
-  }
-
-  // Validate uploaded screenshot metadata
+  // 8. Validate uploaded screenshot metadata.
   const proofFormat = String(paymentProof.format || "").toLowerCase();
   const proofBytes = Number(paymentProof.bytes);
 
@@ -243,36 +219,25 @@ export const POST = asyncHandler(async (request) => {
     proofBytes <= 0 ||
     proofBytes > 5 * 1024 * 1024
   ) {
-    throw new ApiError(400, "Invalid payment screenshot information.");
-  }
-
-  // 11. Check for overlapping bookings
-  const now = new Date();
-
-  const overlappingBooking = await Booking.findOne({
-    cottage: cottage._id,
-    checkIn: { $lt: endDate },
-    checkOut: { $gt: startDate },
-    $or: [
-      { status: "confirmed" },
-      {
-        status: "pending",
-        $or: [
-          { paymentDeadline: { $gt: now } },
-          { paymentDeadline: { $exists: false } },
-        ],
-      },
-    ],
-  }).select("_id");
-
-  if (overlappingBooking) {
     throw new ApiError(
-      409,
-      "These dates are no longer available. Please select different dates."
+      400,
+      "Invalid payment screenshot information."
     );
   }
 
-  // 12. Calculate payment deadline
+  // 9. Find the cottage.
+  // The actual cottage data will be loaded and locked inside
+  // the transaction before availability is checked.
+  const cottage = await Cottage.findOne({
+    slug: cottageSlug,
+    isActive: true,
+  }).select("_id");
+
+  if (!cottage) {
+    throw new ApiError(404, "This cottage is currently unavailable.");
+  }
+
+  // 10. Validate payment deadline configuration.
   const deadlineHours = Number(settings.paymentDeadlineHours);
 
   if (
@@ -280,50 +245,151 @@ export const POST = asyncHandler(async (request) => {
     deadlineHours < 1 ||
     deadlineHours > 48
   ) {
-    throw new ApiError(500, "Booking payment deadline is not configured correctly.");
+    throw new ApiError(
+      500,
+      "Booking payment deadline is not configured correctly."
+    );
   }
 
-  const paymentDeadline = new Date(
-    now.getTime() + deadlineHours * 60 * 60 * 1000
-  );
+  // 11. Atomically lock cottage, check availability and create booking.
+  const dbSession = await mongoose.startSession();
 
-  // 13. Create pending booking with submitted payment
-  const booking = await Booking.create({
-    cottage: cottage._id,
-    guestName: name,
-    guestEmail: email,
-    guestPhone: phone,
-    checkIn: startDate,
-    checkOut: endDate,
-    guests: guestCount,
-    totalPrice,
+  let booking;
+  let cottageName;
+  let totalPrice;
 
-    advancePercentage,
-    paymentAmount: requiredAdvance,
-    paymentMethod: method,
-    transactionId: reference,
+  try {
+    await dbSession.withTransaction(async () => {
+      // This write serializes booking attempts for the same cottage.
+      // MongoDB will detect conflicting concurrent transactions.
+      const lockedCottage = await Cottage.findOneAndUpdate(
+        {
+          _id: cottage._id,
+          isActive: true,
+        },
+        {
+          $inc: { __v: 1 },
+        },
+        {
+          new: true,
+          session: dbSession,
+        }
+      );
 
-    paymentProof: {
-      publicId: paymentProof.publicId,
-      format: proofFormat,
-      bytes: proofBytes,
-    },
+      if (!lockedCottage) {
+        throw new ApiError(
+          404,
+          "This cottage is currently unavailable."
+        );
+      }
 
-    paymentStatus: "submitted",
-    paymentDeadline,
+      if (guestCount > lockedCottage.capacity) {
+        throw new ApiError(
+          400,
+          `This cottage allows a maximum of ${lockedCottage.capacity} guests.`
+        );
+      }
 
-    status: "pending",
-  });
+      // Always calculate price using the current database price.
+      totalPrice = Number(lockedCottage.price) * nights;
 
-  // 14. Return booking and payment information
+      if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+        throw new ApiError(
+          400,
+          "Unable to calculate the booking price."
+        );
+      }
+
+      const requiredAdvance = Math.round(
+        (totalPrice * advancePercentage) / 100
+      );
+
+      if (amount !== requiredAdvance) {
+        throw new ApiError(
+          400,
+          `The required advance payment is ৳${requiredAdvance}.`
+        );
+      }
+
+      const now = new Date();
+
+      // Availability check runs inside the same transaction
+      // as the cottage lock and booking creation.
+      const overlappingBooking = await Booking.findOne({
+        cottage: lockedCottage._id,
+        checkIn: { $lt: endDate },
+        checkOut: { $gt: startDate },
+        $or: [
+          { status: "confirmed" },
+          {
+            status: "pending",
+            $or: [
+              { paymentDeadline: { $gt: now } },
+              { paymentDeadline: { $exists: false } },
+            ],
+          },
+        ],
+      })
+        .select("_id")
+        .session(dbSession);
+
+      if (overlappingBooking) {
+        throw new ApiError(
+          409,
+          "These dates are no longer available. Please select different dates."
+        );
+      }
+
+      const paymentDeadline = new Date(
+        now.getTime() + deadlineHours * 60 * 60 * 1000
+      );
+
+      const newBooking = new Booking({
+        cottage: lockedCottage._id,
+        guestName: name,
+        guestEmail: email,
+        guestPhone: phone,
+        checkIn: startDate,
+        checkOut: endDate,
+        guests: guestCount,
+        totalPrice,
+
+        advancePercentage,
+        paymentAmount: requiredAdvance,
+        paymentMethod: method,
+        transactionId: reference,
+
+        paymentProof: {
+          publicId: paymentProof.publicId,
+          format: proofFormat,
+          bytes: proofBytes,
+        },
+
+        paymentStatus: "submitted",
+        paymentDeadline,
+
+        status: "pending",
+      });
+
+      await newBooking.save({ session: dbSession });
+
+      booking = newBooking;
+      cottageName = lockedCottage.name;
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+
+  // 12. Return booking and payment information.
   return NextResponse.json(
     {
       success: true,
-      message: "Your booking request and payment details have been submitted successfully.",
+      message:
+        "Your booking request and payment details have been submitted successfully.",
       booking: {
         id: booking._id,
         bookingReference: booking.bookingReference,
-        cottage: cottage.name,
+        cottage: cottageName,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         guests: booking.guests,

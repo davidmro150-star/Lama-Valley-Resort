@@ -10,7 +10,7 @@ import sendBookingCancellation from "@/lib/sendBookingCancellation";
 import sendBookingRejection from "@/lib/sendBookingRejection";
 
 import Booking from "@/models/booking";
-import "@/models/Cottage";
+import Cottage from "@/models/Cottage";
 import RestaurantOrder from "@/models/RestaurantOrder";
 
 // Round money to two decimal places.
@@ -27,7 +27,6 @@ function validAdminId(session) {
 }
 
 // Only cottage_bill restaurant orders belong to the accommodation account.
-// pay_now orders and their payment histories are never modified here.
 async function synchronizeRestaurantPayments(
   booking,
   restaurantOrders,
@@ -468,8 +467,6 @@ export async function PATCH(request, { params }) {
             cottageTotal + restaurantTotal
           );
 
-          // Only booking payments count toward accommodation.
-          // Immediate restaurant payments remain separate.
           const totalReceived = money(
             verifiedAdvance + bookingAdditionalPayments
           );
@@ -695,53 +692,195 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const requiredPreviousStatus =
-      status === "cancelled" ? "confirmed" : "pending";
+    let booking;
 
-    if (
-      status === "confirmed" &&
-      existingBooking.paymentStatus !== "verified"
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Please verify the guest's payment before confirming this booking.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // 8. Atomically update booking status.
-    const updateQuery = {
-      _id: id,
-      status: requiredPreviousStatus,
-    };
-
+    // 8. Confirm booking with cottage-level concurrency protection.
     if (status === "confirmed") {
-      updateQuery.paymentStatus = "verified";
-    }
+      const dbSession = await mongoose.startSession();
 
-    const booking = await Booking.findOneAndUpdate(
-      updateQuery,
-      {
-        $set: { status },
-      },
-      {
-        new: true,
-        runValidators: true,
+      let confirmationResult = null;
+
+      try {
+        await dbSession.withTransaction(async () => {
+          booking = null;
+          confirmationResult = null;
+
+          const currentBooking = await Booking.findOne({
+            _id: id,
+            status: "pending",
+            paymentStatus: "verified",
+          }).session(dbSession);
+
+          if (!currentBooking) {
+            confirmationResult = {
+              status: 409,
+              data: {
+                success: false,
+                message:
+                  "This booking is no longer pending or its payment has not been verified.",
+              },
+            };
+            return;
+          }
+
+          const now = new Date();
+
+          // Do not confirm an expired pending reservation.
+          if (
+            currentBooking.paymentDeadline &&
+            currentBooking.paymentDeadline <= now
+          ) {
+            confirmationResult = {
+              status: 409,
+              data: {
+                success: false,
+                message:
+                  "This booking's payment deadline has expired. Please review it before confirming.",
+              },
+            };
+            return;
+          }
+
+          // Lock the cottage. Concurrent booking operations
+          // for this cottage must serialize through this write.
+          const lockedCottage = await Cottage.findOneAndUpdate(
+            {
+              _id: currentBooking.cottage,
+              isActive: true,
+            },
+            {
+              $inc: { __v: 1 },
+            },
+            {
+              new: true,
+              session: dbSession,
+            }
+          );
+
+          if (!lockedCottage) {
+            confirmationResult = {
+              status: 409,
+              data: {
+                success: false,
+                message:
+                  "The cottage could not be found or is no longer active.",
+              },
+            };
+            return;
+          }
+
+          // Check all other active reservations for overlapping dates.
+          const overlappingBooking = await Booking.findOne({
+            _id: { $ne: currentBooking._id },
+            cottage: currentBooking.cottage,
+            checkIn: { $lt: currentBooking.checkOut },
+            checkOut: { $gt: currentBooking.checkIn },
+            $or: [
+              { status: "confirmed" },
+              {
+                status: "pending",
+                $or: [
+                  { paymentDeadline: { $gt: now } },
+                  { paymentDeadline: { $exists: false } },
+                ],
+              },
+            ],
+          })
+            .select("_id")
+            .session(dbSession);
+
+          if (overlappingBooking) {
+            confirmationResult = {
+              status: 409,
+              data: {
+                success: false,
+                message:
+                  "These dates overlap another active booking. Please review the reservations before confirming.",
+              },
+            };
+            return;
+          }
+
+          booking = await Booking.findOneAndUpdate(
+            {
+              _id: id,
+              status: "pending",
+              paymentStatus: "verified",
+            },
+            {
+              $set: { status: "confirmed" },
+            },
+            {
+              new: true,
+              runValidators: true,
+              session: dbSession,
+            }
+          );
+
+          if (!booking) {
+            confirmationResult = {
+              status: 409,
+              data: {
+                success: false,
+                message:
+                  "This booking has already been updated. Please refresh.",
+              },
+            };
+            return;
+          }
+
+          confirmationResult = {
+            status: 200,
+            data: { success: true },
+          };
+        });
+      } finally {
+        await dbSession.endSession();
       }
-    );
 
-    if (!booking) {
-      return NextResponse.json(
+      if (
+        !confirmationResult ||
+        confirmationResult.status !== 200
+      ) {
+        return NextResponse.json(
+          confirmationResult?.data || {
+            success: false,
+            message: "Unable to confirm booking.",
+          },
+          {
+            status: confirmationResult?.status || 500,
+          }
+        );
+      }
+    } else {
+      // Rejection and cancellation retain their existing behavior.
+      const requiredPreviousStatus =
+        status === "cancelled" ? "confirmed" : "pending";
+
+      booking = await Booking.findOneAndUpdate(
         {
-          success: false,
-          message:
-            "This booking has already been updated or its current status does not allow this action.",
+          _id: id,
+          status: requiredPreviousStatus,
         },
-        { status: 409 }
+        {
+          $set: { status },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
       );
+
+      if (!booking) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "This booking has already been updated or its current status does not allow this action.",
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // 9. Send appropriate booking email.
