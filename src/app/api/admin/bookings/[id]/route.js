@@ -8,7 +8,7 @@ import connectDB from "@/lib/mongodb";
 import sendBookingConfirmation from "@/lib/sendBookingConfirmation";
 import sendBookingCancellation from "@/lib/sendBookingCancellation";
 import sendBookingRejection from "@/lib/sendBookingRejection";
-
+import { getCloudinary } from "@/lib/cloudinary";
 import Booking from "@/models/booking";
 import Cottage from "@/models/Cottage";
 import RestaurantOrder from "@/models/RestaurantOrder";
@@ -953,3 +953,187 @@ export async function PATCH(request, { params }) {
     );
   }
 }
+
+
+
+export async function DELETE(request, { params }) {
+  try {
+    // 1. Authenticate administrator.
+    const session = await auth();
+
+    if (!session?.user || session.user.role !== "admin") {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized access." },
+        { status: 401 }
+      );
+    }
+
+    // 2. Validate booking ID.
+    const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid booking ID." },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    // 3. Find booking.
+    const booking = await Booking.findById(id);
+
+    if (!booking) {
+      return NextResponse.json(
+        { success: false, message: "Booking not found." },
+        { status: 404 }
+      );
+    }
+
+    // 4. Only allow deletion of non-confirmed bookings.
+    const allowedStatuses = [
+      "pending",
+      "cancelled",
+      "rejected",
+      "expired",
+    ];
+
+    if (!allowedStatuses.includes(booking.status)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Only pending, cancelled, rejected, or expired bookings can be deleted.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // 5. Protect actual payment history.
+    if (
+      ["submitted", "verified", "refunded"].includes(
+        booking.paymentStatus
+      ) ||
+      booking.paymentVerifiedAt ||
+      booking.paymentVerifiedBy
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "This booking contains payment information that must be preserved. Deletion is not allowed.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (booking.paymentStatus !== "unpaid" &&
+        booking.paymentStatus !== "rejected") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "This booking's payment status does not allow deletion.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (booking.payments?.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "This booking has additional payment records. Delete is not allowed.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // 6. Preserve restaurant orders and their financial history.
+    const linkedRestaurantOrder = await RestaurantOrder.findOne({
+      booking: booking._id,
+    })
+      .select("_id")
+      .lean();
+
+    if (linkedRestaurantOrder) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "This booking has linked restaurant orders. Deletion is blocked to protect restaurant sales and payment history.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // 7. Save Cloudinary image ID before deleting booking.
+    const paymentProofPublicId =
+      booking.paymentProof?.publicId || null;
+
+    // 8. Permanently delete booking from MongoDB.
+    const deletedBooking = await Booking.findOneAndDelete({
+      _id: id,
+      status: booking.status,
+      paymentStatus: booking.paymentStatus,
+      payments: { $size: 0 },
+      paymentVerifiedAt: null,
+      paymentVerifiedBy: null,
+    });
+
+    if (!deletedBooking) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "The booking changed during deletion. Refresh and try again.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // 9. Clean up the associated Cloudinary screenshot.
+    let imageCleanupWarning = false;
+
+    if (paymentProofPublicId) {
+      try {
+        const cloudinary = getCloudinary();
+
+        const result = await cloudinary.uploader.destroy(
+          paymentProofPublicId,
+          { resource_type: "image" }
+        );
+
+        if (!["ok", "not found"].includes(result.result)) {
+          imageCleanupWarning = true;
+        }
+      } catch (cloudinaryError) {
+        imageCleanupWarning = true;
+
+        console.error(
+          "Payment proof cleanup error:",
+          cloudinaryError
+        );
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: imageCleanupWarning
+        ? "Booking deleted, but its Cloudinary image could not be removed. Please check Cloudinary."
+        : "Booking deleted successfully.",
+      imageCleanupWarning,
+    });
+  } catch (error) {
+    console.error("Admin booking deletion error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Unable to delete booking. Please try again.",
+      },
+      { status: 500 }
+    );
+  }
+}
+

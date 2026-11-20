@@ -1,8 +1,6 @@
 
 import connectDB from "@/lib/mongodb";
-
 import Booking from "@/models/booking";
-import Cottage from "@/models/Cottage";
 
 import { ApiError, asyncHandler } from "@/lib/apiError";
 
@@ -52,7 +50,24 @@ export const POST = asyncHandler(async (request) => {
     guestEmail: email,
   })
     .select(
-      "bookingReference guestName guestEmail cottage checkIn checkOut guests totalPrice status paymentStatus createdAt"
+      [
+        "bookingReference",
+        "guestName",
+        "cottage",
+        "checkIn",
+        "checkOut",
+        "guests",
+        "totalPrice",
+        "status",
+        "paymentStatus",
+        "advancePercentage",
+        "paymentAmount",
+        "paymentMethod",
+        "transactionId",
+        "paymentVerifiedAt",
+        "payments",
+        "createdAt",
+      ].join(" ")
     )
     .populate("cottage", "name")
     .lean();
@@ -74,7 +89,43 @@ export const POST = asyncHandler(async (request) => {
     )
   );
 
-  // 7. Return booking details
+  // 7. Calculate verified advance payment
+  const isAdvanceVerified =
+    booking.paymentStatus === "verified";
+
+  const submittedAdvanceAmount =
+    Number(booking.paymentAmount) || 0;
+
+  const verifiedAdvanceAmount = isAdvanceVerified
+    ? submittedAdvanceAmount
+    : 0;
+
+  // 8. Prepare additional payments recorded by admin
+  const additionalPayments = Array.isArray(booking.payments)
+    ? booking.payments.map((payment) => ({
+        amount: Number(payment.amount) || 0,
+        method: payment.method || "",
+        paidAt: payment.paidAt || null,
+      }))
+    : [];
+
+  const additionalPaymentsTotal = additionalPayments.reduce(
+    (total, payment) => total + payment.amount,
+    0
+  );
+
+  // 9. Calculate total paid and remaining balance
+  const totalPrice = Number(booking.totalPrice) || 0;
+
+  const totalPaid =
+    verifiedAdvanceAmount + additionalPaymentsTotal;
+
+  const remainingBalance = Math.max(
+    0,
+    totalPrice - totalPaid
+  );
+
+  // 10. Return guest-safe booking information
   return Response.json(
     {
       success: true,
@@ -84,13 +135,33 @@ export const POST = asyncHandler(async (request) => {
         bookingReference: booking.bookingReference,
         guestName: booking.guestName,
         cottage: booking.cottage?.name || "Cottage unavailable",
+
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         guests: booking.guests,
         nights,
-        totalPrice: booking.totalPrice,
+
+        totalPrice,
         status: booking.status,
+
         paymentStatus: booking.paymentStatus,
+
+        advancePercentage: booking.advancePercentage || 0,
+
+        submittedAdvanceAmount,
+        verifiedAdvanceAmount,
+
+        paymentMethod: booking.paymentMethod || "",
+        transactionId: booking.transactionId || "",
+
+        paymentVerifiedAt: booking.paymentVerifiedAt || null,
+
+        additionalPayments,
+
+        additionalPaymentsTotal,
+        totalPaid,
+        remainingBalance,
+
         createdAt: booking.createdAt,
       },
     },

@@ -29,7 +29,18 @@ function formatPrice(amount) {
     style: "currency",
     currency: "BDT",
     maximumFractionDigits: 0,
-  }).format(amount || 0);
+  }).format(Number(amount) || 0);
+}
+
+function getPaymentMethod(method) {
+  const methods = {
+    bkash: "bKash",
+    nagad: "Nagad",
+    bank: "Bank Transfer",
+    cash: "Cash",
+  };
+
+  return methods[method] || "Not specified";
 }
 
 export default async function sendBookingConfirmation(booking) {
@@ -47,16 +58,89 @@ export default async function sendBookingConfirmation(booking) {
   );
   const bookingReference = escapeHtml(booking.bookingReference);
 
-  const checkIn = formatDate(booking.checkIn);
-  const checkOut = formatDate(booking.checkOut);
-  const totalPrice = formatPrice(booking.totalPrice);
+  const checkIn = escapeHtml(formatDate(booking.checkIn));
+  const checkOut = escapeHtml(formatDate(booking.checkOut));
+
+  const totalAmount = Number(booking.totalPrice) || 0;
+  const totalPrice = formatPrice(totalAmount);
   const guests = Number(booking.guests) || 1;
 
-  const paymentStatus = {
-    paid: "Paid",
+  // Advance payment information.
+  const isAdvanceVerified =
+    booking.paymentStatus === "verified";
+
+  const advanceAmount = isAdvanceVerified
+    ? Number(booking.paymentAmount) || 0
+    : 0;
+
+  const advancePercentage = Number(booking.advancePercentage) || 0;
+
+  const remainingBalance = Math.max(
+    0,
+    totalAmount - advanceAmount
+  );
+
+  const paymentMethod = getPaymentMethod(
+    booking.paymentMethod
+  );
+
+  const transactionId =
+    typeof booking.transactionId === "string" &&
+    booking.transactionId.trim()
+      ? booking.transactionId.trim()
+      : null;
+
+  const paymentStatusLabels = {
+    verified: "Verified",
+    submitted: "Awaiting Verification",
     unpaid: "Unpaid",
+    rejected: "Rejected",
     refunded: "Refunded",
-  }[booking.paymentStatus] || "Unpaid";
+  };
+
+  const paymentStatus =
+    paymentStatusLabels[booking.paymentStatus] ||
+    "Not specified";
+
+  const safePaymentMethod = escapeHtml(paymentMethod);
+  const safeTransactionId = escapeHtml(
+    transactionId || "Not available"
+  );
+  const safePaymentStatus = escapeHtml(paymentStatus);
+
+  const advancePrice = formatPrice(advanceAmount);
+  const remainingPrice = formatPrice(remainingBalance);
+
+  // Additional payments, if present on the booking.
+  const additionalPayments = Array.isArray(booking.payments)
+    ? booking.payments
+    : [];
+
+  const additionalPaymentsHtml = additionalPayments.length
+    ? additionalPayments
+        .map((payment) => {
+          return `
+            <tr>
+              <td style="padding:10px 0;border-bottom:1px solid #eee;color:#777;">
+                ${escapeHtml(getPaymentMethod(payment.method))}
+              </td>
+              <td style="padding:10px 0;border-bottom:1px solid #eee;text-align:right;font-weight:bold;">
+                ${escapeHtml(formatPrice(payment.amount))}
+              </td>
+            </tr>
+          `;
+        })
+        .join("")
+    : "";
+
+  const additionalPaymentsText = additionalPayments.length
+    ? additionalPayments
+        .map(
+          (payment) =>
+            `${getPaymentMethod(payment.method)}: ${formatPrice(payment.amount)}`
+        )
+        .join("\n")
+    : "No additional payments recorded.";
 
   const siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
@@ -123,14 +207,74 @@ export default async function sendBookingConfirmation(booking) {
                 <td style="padding:11px 0;border-bottom:1px solid #eee;text-align:right;">${guests}</td>
               </tr>
               <tr>
-                <td style="padding:11px 0;border-bottom:1px solid #eee;color:#777;">Total Amount</td>
-                <td style="padding:11px 0;border-bottom:1px solid #eee;text-align:right;font-weight:bold;">${totalPrice}</td>
-              </tr>
-              <tr>
-                <td style="padding:11px 0;color:#777;">Payment Status</td>
-                <td style="padding:11px 0;text-align:right;font-weight:bold;">${paymentStatus}</td>
+                <td style="padding:11px 0;color:#777;">Total Cottage Amount</td>
+                <td style="padding:11px 0;text-align:right;font-weight:bold;">${escapeHtml(totalPrice)}</td>
               </tr>
             </table>
+
+            <h3 style="color:#234b3b;margin-top:30px;">Advance Payment Details</h3>
+
+            <div style="background:#f7f5ef;padding:18px;border-radius:8px;">
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;color:#777;">Required Advance</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;text-align:right;font-weight:bold;">
+                    ${advancePercentage ? `${advancePercentage}%` : "Not specified"}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;color:#777;">Advance Amount</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;text-align:right;font-weight:bold;color:#234b3b;">
+                    ${escapeHtml(advancePrice)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;color:#777;">Payment Method</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;text-align:right;">
+                    ${safePaymentMethod}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;color:#777;">Transaction ID</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #e8e3d9;text-align:right;font-weight:bold;word-break:break-word;">
+                    ${safeTransactionId}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0;color:#777;">Payment Verification</td>
+                  <td style="padding:10px 0;text-align:right;font-weight:bold;color:${isAdvanceVerified ? "#234b3b" : "#a15c20"};">
+                    ${safePaymentStatus}
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <h3 style="color:#234b3b;margin-top:30px;">Outstanding Cottage Balance</h3>
+
+            <div style="background:#edf6ef;padding:18px;border-radius:8px;">
+              <p style="margin:0;color:#777;font-size:13px;">
+                REMAINING AMOUNT
+              </p>
+              <h2 style="margin:8px 0 0;color:#234b3b;">
+                ${escapeHtml(remainingPrice)}
+              </h2>
+              <p style="margin:8px 0 0;color:#555;font-size:13px;line-height:1.6;">
+                ${isAdvanceVerified
+                  ? "This is the remaining cottage accommodation balance after your verified advance payment."
+                  : "No advance payment has been marked as verified. Please contact the resort team regarding your payment."}
+              </p>
+            </div>
+
+            ${
+              additionalPaymentsHtml
+                ? `
+                  <h3 style="color:#234b3b;margin-top:30px;">Additional Payment Records</h3>
+                  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                    ${additionalPaymentsHtml}
+                  </table>
+                `
+                : ""
+            }
 
             <div style="margin:25px 0;padding:20px;background:#f7f5ef;border-radius:8px;">
               <p style="margin:0;color:#555;font-size:14px;line-height:1.7;">
@@ -179,8 +323,26 @@ Accommodation: ${booking.cottage?.name || "Reserved Cottage"}
 Check-in: ${checkIn}
 Check-out: ${checkOut}
 Guests: ${guests}
-Total Amount: ${totalPrice}
-Payment Status: ${paymentStatus}
+Total Cottage Amount: ${totalPrice}
+
+ADVANCE PAYMENT DETAILS
+Required Advance: ${advancePercentage ? `${advancePercentage}%` : "Not specified"}
+Advance Amount: ${advancePrice}
+Payment Method: ${paymentMethod}
+Transaction ID: ${transactionId || "Not available"}
+Payment Verification: ${paymentStatus}
+
+REMAINING COTTAGE BALANCE
+${remainingPrice}
+
+Additional Payment Records:
+${additionalPaymentsText}
+
+${
+  isAdvanceVerified
+    ? "Your advance payment has been verified by the resort."
+    : "Your advance payment is not marked as verified. Please contact the resort."
+}
 
 Check your booking status:
 ${bookingStatusUrl}

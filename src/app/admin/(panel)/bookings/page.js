@@ -307,11 +307,12 @@ export default async function BookingsPage() {
                         View Details →
                       </Link>
 
-                      <BookingActions
-                        bookingId={booking._id.toString()}
-                        status={booking.status}
-                        paymentStatus={booking.paymentStatus}
-                      />
+                   <BookingActions
+  bookingId={booking._id.toString()}
+  status={booking.status}
+  paymentStatus={booking.paymentStatus}
+  hasAdditionalPayments={booking.payments?.length > 0}
+   />
                     </div>
                   </div>
                 </div>
