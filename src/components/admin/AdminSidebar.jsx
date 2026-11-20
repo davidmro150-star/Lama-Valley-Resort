@@ -28,7 +28,7 @@ const navigation = [
         name: "Dashboard",
         href: "/admin/dashboard",
         icon: LayoutDashboard,
-        available: true,
+        roles: ["admin", "manager"],
       },
     ],
   },
@@ -39,44 +39,43 @@ const navigation = [
         name: "Bookings",
         href: "/admin/bookings",
         icon: CalendarDays,
-        available: true,
+        roles: ["admin", "manager"],
       },
-
       {
         name: "Front Desk Booking",
         href: "/admin/front-desk-bookings",
         icon: ClipboardPlus,
-        available: true,
+        roles: ["admin", "manager"],
       },
       {
         name: "Guest Management",
         href: "/admin/guests",
         icon: Users,
-        available: true,
+        roles: ["admin", "manager"],
       },
       {
         name: "Cottages",
         href: "/admin/rooms",
         icon: House,
-        available: true,
+        roles: ["admin", "manager"],
       },
       {
         name: "Restaurant Menu",
         href: "/admin/restaurant",
         icon: UtensilsCrossed,
-        available: true,
+        roles: ["admin", "manager"],
       },
       {
         name: "Restaurant Orders",
         href: "/admin/restaurant/orders",
         icon: ClipboardList,
-        available: true,
+        roles: ["admin", "manager"],
       },
       {
         name: "Packages",
         href: "/admin/packages",
         icon: Package,
-        available: true,
+        roles: ["admin", "manager"],
       },
     ],
   },
@@ -87,31 +86,31 @@ const navigation = [
         name: "Gallery",
         href: "/admin/gallery",
         icon: Images,
-        available: true,
+        roles: ["admin", "manager"],
       },
       {
         name: "Pages",
         href: "/admin/pages",
         icon: FileText,
-        available: true,
+        roles: ["admin"],
       },
       {
         name: "About Page",
         href: "/admin/about-page",
         icon: FileText,
-        available: true,
+        roles: ["admin"],
       },
       {
         name: "Contact Page",
         href: "/admin/contact-page",
         icon: FileText,
-        available: true,
+        roles: ["admin"],
       },
       {
         name: "Messages",
         href: "/admin/messages",
         icon: MessageSquare,
-        available: true,
+        roles: ["admin", "manager"],
       },
     ],
   },
@@ -122,14 +121,23 @@ const navigation = [
         name: "Settings",
         href: "/admin/settings",
         icon: Settings,
-        available: true,
+        roles: ["admin"],
       },
     ],
   },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ role = "admin" }) {
   const pathname = usePathname();
+
+  const visibleNavigation = navigation
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        item.roles.includes(role)
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside className="flex min-h-screen w-[260px] shrink-0 flex-col bg-[#173729] text-white">
@@ -144,14 +152,14 @@ export default function AdminSidebar() {
               LAMA VALLEY
             </h1>
             <p className="mt-0.5 text-[9px] tracking-[0.22em] text-white/55">
-              RESORT ADMIN
+              {role === "admin" ? "ADMIN PORTAL" : "MANAGER PORTAL"}
             </p>
           </div>
         </Link>
       </div>
 
       <nav className="flex-1 space-y-7 overflow-y-auto px-4 py-7">
-        {navigation.map((group) => (
+        {visibleNavigation.map((group) => (
           <div key={group.title}>
             <p className="mb-3 px-3 text-[10px] font-semibold tracking-[0.18em] text-white/40">
               {group.title}
@@ -163,39 +171,24 @@ export default function AdminSidebar() {
 
                 const isActive =
                   pathname === item.href ||
-                  (item.href !== "/admin" &&
-                    pathname.startsWith(`${item.href}/`));
+                  pathname.startsWith(`${item.href}/`);
 
                 return (
-                  <div key={item.name}>
-                    {item.available ? (
-                      <Link
-                        href={item.href}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-3 text-[13px] font-medium transition ${isActive
-                            ? "bg-[#426b55] text-white shadow-sm"
-                            : "text-white/65 hover:bg-white/8 hover:text-white"
-                          }`}
-                      >
-                        <Icon size={18} strokeWidth={1.8} />
-                        <span>{item.name}</span>
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-3 text-[13px] font-medium transition ${isActive
+                        ? "bg-[#426b55] text-white shadow-sm"
+                        : "text-white/65 hover:bg-white/8 hover:text-white"
+                      }`}
+                  >
+                    <Icon size={18} strokeWidth={1.8} />
+                    <span>{item.name}</span>
 
-                        {isActive && (
-                          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#e2c18e]" />
-                        )}
-                      </Link>
-                    ) : (
-                      <div
-                        title="This section will be available soon"
-                        className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-3 text-[13px] font-medium text-white/35"
-                      >
-                        <Icon size={18} strokeWidth={1.8} />
-                        <span>{item.name}</span>
-                        <span className="ml-auto text-[9px] text-white/30">
-                          SOON
-                        </span>
-                      </div>
+                    {isActive && (
+                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#e2c18e]" />
                     )}
-                  </div>
+                  </Link>
                 );
               })}
             </div>

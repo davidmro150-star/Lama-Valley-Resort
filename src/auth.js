@@ -6,10 +6,12 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 
+const ALLOWED_ROLES = ["admin", "manager"];
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
-      name: "Admin Credentials",
+      name: "Admin & Manager Credentials",
 
       credentials: {
         email: {
@@ -39,11 +41,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         await connectDB();
 
-        const user = await User.findOne({ email }).select(
-          "+password"
-        );
+        const user = await User.findOne({ email }).select("+password");
 
-        if (!user || !user.isActive || user.role !== "admin") {
+        if (
+          !user ||
+          !user.isActive ||
+          !ALLOWED_ROLES.includes(user.role)
+        ) {
           return null;
         }
 
@@ -97,7 +101,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (
         !currentUser ||
         !currentUser.isActive ||
-        currentUser.role !== "admin"
+        !ALLOWED_ROLES.includes(currentUser.role)
       ) {
         return null;
       }
