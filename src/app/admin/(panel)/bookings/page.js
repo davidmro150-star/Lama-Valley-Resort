@@ -1,9 +1,9 @@
 
 import Link from "next/link";
 
+import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
 import Booking from "@/models/booking";
-import Cottage from "@/models/Cottage";
 import BookingActions from "@/components/admin/BookingActions";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +29,11 @@ function formatPrice(amount) {
 
 function SummaryCard({ title, value, description }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
       <p className="text-sm font-medium text-gray-500">{title}</p>
-      <h3 className="mt-3 text-2xl font-bold text-gray-900">{value}</h3>
+      <h3 className="mt-3 text-2xl font-bold text-gray-900">
+        {value}
+      </h3>
       <p className="mt-1 text-xs text-gray-400">{description}</p>
     </div>
   );
@@ -62,6 +64,9 @@ function StatusBadge({ status }) {
 }
 
 export default async function BookingsPage() {
+  const session = await auth();
+  const isAdmin = session?.user?.role === "admin";
+
   let bookings = [];
 
   try {
@@ -101,33 +106,40 @@ export default async function BookingsPage() {
       !["cancelled", "rejected", "expired"].includes(booking.status)
   );
 
-  const totalBookingValue = activeBookings.reduce(
-    (total, booking) => total + (Number(booking.totalPrice) || 0),
-    0
-  );
+  // Overall financial summaries are Admin-only.
+  const totalBookingValue = isAdmin
+    ? activeBookings.reduce(
+        (total, booking) =>
+          total + (Number(booking.totalPrice) || 0),
+        0
+      )
+    : 0;
 
-  const verifiedPayments = bookings.reduce((total, booking) => {
-    const advance =
-      booking.paymentStatus === "verified"
-        ? Number(booking.paymentAmount) || 0
-        : 0;
+  const totalPaymentsReceived = isAdmin
+    ? bookings.reduce((total, booking) => {
+        const advance =
+          booking.paymentStatus === "verified"
+            ? Number(booking.paymentAmount) || 0
+            : 0;
 
-    const additional = Array.isArray(booking.payments)
-      ? booking.payments.reduce(
-          (sum, payment) => sum + (Number(payment.amount) || 0),
-          0
-        )
-      : 0;
+        const additional = Array.isArray(booking.payments)
+          ? booking.payments.reduce(
+              (sum, payment) =>
+                sum + (Number(payment.amount) || 0),
+              0
+            )
+          : 0;
 
-    return total + advance + additional;
-  }, 0);
+        return total + advance + additional;
+      }, 0)
+    : 0;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
             Booking Management
           </h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -141,7 +153,11 @@ export default async function BookingsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div
+        className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+          isAdmin ? "xl:grid-cols-3" : "xl:grid-cols-3"
+        }`}
+      >
         <SummaryCard
           title="Total Bookings"
           value={totalBookings}
@@ -151,7 +167,7 @@ export default async function BookingsPage() {
         <SummaryCard
           title="Pending Bookings"
           value={pendingBookings}
-          description="Waiting for admin action"
+          description="Waiting for staff action"
         />
 
         <SummaryCard
@@ -160,17 +176,21 @@ export default async function BookingsPage() {
           description="Successfully confirmed"
         />
 
-        <SummaryCard
-          title="Total Booking Value"
-          value={formatPrice(totalBookingValue)}
-          description="Excludes cancelled, rejected and expired bookings"
-        />
+        {isAdmin && (
+          <>
+            <SummaryCard
+              title="Total Booking Value"
+              value={formatPrice(totalBookingValue)}
+              description="Excludes cancelled, rejected and expired bookings"
+            />
 
-        <SummaryCard
-          title="Total Payments Received"
-          value={formatPrice(verifiedPayments)}
-          description="Recorded payments"
-        />
+            <SummaryCard
+              title="Total Payments Received"
+              value={formatPrice(totalPaymentsReceived)}
+              description="Recorded payment amounts"
+            />
+          </>
+        )}
       </div>
 
       {/* Reservation List */}
@@ -219,9 +239,9 @@ export default async function BookingsPage() {
               return (
                 <div
                   key={booking._id.toString()}
-                  className="p-5 transition hover:bg-gray-50/70"
+                  className="p-5 transition-colors hover:bg-gray-50/70"
                 >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                     {/* Guest and Cottage */}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -274,7 +294,7 @@ export default async function BookingsPage() {
                       </p>
                     </div>
 
-                    {/* Financial Summary */}
+                    {/* Individual Booking Payment Summary */}
                     <div className="min-w-[150px]">
                       <p className="text-xs text-gray-400">
                         TOTAL BOOKING
@@ -307,12 +327,15 @@ export default async function BookingsPage() {
                         View Details →
                       </Link>
 
-                   <BookingActions
-  bookingId={booking._id.toString()}
-  status={booking.status}
-  paymentStatus={booking.paymentStatus}
-  hasAdditionalPayments={booking.payments?.length > 0}
-   />
+                      <BookingActions
+                        bookingId={booking._id.toString()}
+                        status={booking.status}
+                        paymentStatus={booking.paymentStatus}
+                        hasAdditionalPayments={
+                          booking.payments?.length > 0
+                        }
+                        canDelete={isAdmin}
+                      />
                     </div>
                   </div>
                 </div>

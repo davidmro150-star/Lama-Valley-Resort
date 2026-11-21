@@ -1,11 +1,12 @@
 
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
-
 import Cottage from "@/models/Cottage";
 import Booking from "@/models/booking";
+
+import { authorizeApiRequest } from "@/lib/authorize";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,20 +29,14 @@ function isValidDate(value) {
 
 export async function GET(request) {
   try {
-    // Verify admin access
-    const session = await auth();
+    // 1. Authorize staff who can view bookings.
+    const { response } = await authorizeApiRequest(
+      PERMISSIONS.BOOKINGS_VIEW
+    );
 
-    if (session?.user?.role !== "admin") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Unauthorized access.",
-        },
-        { status: 401 }
-      );
-    }
+    if (response) return response;
 
-    // Read selected dates
+    // 2. Read selected dates.
     const { searchParams } = new URL(request.url);
 
     const checkIn = searchParams.get("checkIn");
@@ -57,7 +52,6 @@ export async function GET(request) {
       );
     }
 
-    // Use UTC midnight to match the existing booking date format
     const checkInDate = new Date(`${checkIn}T00:00:00.000Z`);
     const checkOutDate = new Date(`${checkOut}T00:00:00.000Z`);
 
@@ -73,7 +67,7 @@ export async function GET(request) {
 
     await connectDB();
 
-    // Retrieve all active cottages
+    // 3. Retrieve active cottages.
     const cottages = await Cottage.find({
       isActive: true,
     })
@@ -83,20 +77,18 @@ export async function GET(request) {
 
     const now = new Date();
 
-    // Find reservations that block the selected date range
+    // 4. Find bookings that block the selected date range.
     const existingBookings = await Booking.find({
       checkIn: { $lt: checkOutDate },
       checkOut: { $gt: checkInDate },
-
       $or: [
-        {
-          status: "confirmed",
-        },
+        { status: "confirmed" },
         {
           status: "pending",
           $or: [
             { paymentDeadline: { $gt: now } },
             { paymentDeadline: null },
+            { paymentDeadline: { $exists: false } },
           ],
         },
       ],
@@ -104,21 +96,19 @@ export async function GET(request) {
       .select("cottage checkIn checkOut status paymentDeadline")
       .lean();
 
-    // Collect cottage IDs that are already occupied
+    // 5. Collect unavailable cottage IDs.
     const unavailableCottageIds = new Set(
-      existingBookings.map((booking) =>
-        String(booking.cottage)
-      )
+      existingBookings.map((booking) => String(booking.cottage))
     );
 
-    // Return availability information for each cottage
+    // 6. Return cottage availability.
     const results = cottages.map((cottage) => {
       const isAvailable = !unavailableCottageIds.has(
         String(cottage._id)
       );
 
       return {
-        _id: cottage._id,
+        _id: String(cottage._id),
         name: cottage.name,
         slug: cottage.slug,
         price: cottage.price,

@@ -20,7 +20,11 @@ export const PERMISSIONS = {
   // Payments
   PAYMENTS_VIEW: "payments.view",
   PAYMENTS_VERIFY: "payments.verify",
+  PAYMENTS_RECORD: "payments.record",
   PAYMENTS_HISTORY_VIEW: "payments.history.view",
+  RESTAURANT_PAYMENTS_SYNC: "restaurant-payments.sync",
+
+  // Admin-only financial access
   FINANCIAL_REPORTS_VIEW: "financial-reports.view",
 
   // Resort management
@@ -47,33 +51,51 @@ export const PERMISSIONS = {
   USERS_MANAGE: "users.manage",
 };
 
+// Admin receives every defined permission.
 const adminPermissions = Object.values(PERMISSIONS);
 
+// Manager receives operational permissions only.
 const managerPermissions = [
+  // Dashboard
   PERMISSIONS.DASHBOARD_VIEW,
 
+  // Bookings
   PERMISSIONS.BOOKINGS_VIEW,
   PERMISSIONS.BOOKINGS_CREATE,
   PERMISSIONS.BOOKINGS_UPDATE,
   PERMISSIONS.BOOKINGS_CANCEL,
+  PERMISSIONS.BOOKINGS_HISTORY_VIEW,
 
+  // Individual guest payments
   PERMISSIONS.PAYMENTS_VIEW,
   PERMISSIONS.PAYMENTS_VERIFY,
+  PERMISSIONS.PAYMENTS_RECORD,
+  PERMISSIONS.PAYMENTS_HISTORY_VIEW,
 
+  // Restaurant payment synchronization
+  PERMISSIONS.RESTAURANT_PAYMENTS_SYNC,
+
+  // Guest management
   PERMISSIONS.GUESTS_VIEW,
+
+  // Cottage management
   PERMISSIONS.COTTAGES_VIEW,
   PERMISSIONS.COTTAGES_MANAGE,
 
+  // Restaurant management
   PERMISSIONS.RESTAURANT_VIEW,
   PERMISSIONS.RESTAURANT_MANAGE,
   PERMISSIONS.RESTAURANT_ORDERS_VIEW,
 
+  // Packages
   PERMISSIONS.PACKAGES_VIEW,
   PERMISSIONS.PACKAGES_MANAGE,
 
+  // Gallery
   PERMISSIONS.GALLERY_VIEW,
   PERMISSIONS.GALLERY_MANAGE,
 
+  // Guest communication
   PERMISSIONS.MESSAGES_VIEW,
 ];
 
@@ -86,9 +108,7 @@ export const ROLE_PERMISSIONS = {
 };
 
 export function hasPermission(role, permission) {
-  return (
-    ROLE_PERMISSIONS[role]?.includes(permission) ?? false
-  );
+  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
 }
 
 export function hasAnyPermission(role, permissions = []) {

@@ -2,13 +2,13 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 
-import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
-
 import Cottage from "@/models/Cottage";
 import Booking from "@/models/booking";
 
 import { ApiError, asyncHandler } from "@/lib/apiError";
+import { authorizeApiRequest } from "@/lib/authorize";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -35,22 +35,22 @@ function isValidDate(value) {
 }
 
 export const POST = asyncHandler(async (request) => {
-  // 1. Verify admin
-  const session = await auth();
+  // 1. Authorize staff who can create bookings.
+  const { user, response } = await authorizeApiRequest(
+    PERMISSIONS.BOOKINGS_CREATE
+  );
 
-  if (session?.user?.role !== "admin") {
-    throw new ApiError(401, "Unauthorized access.");
-  }
+  if (response) return response;
 
-  const adminId = session.user.id || session.user._id;
+  const staffId = user.id || user._id;
 
-  if (!mongoose.Types.ObjectId.isValid(adminId)) {
-    throw new ApiError(401, "Invalid admin account.");
+  if (!mongoose.Types.ObjectId.isValid(staffId)) {
+    throw new ApiError(401, "Invalid staff account.");
   }
 
   await connectDB();
 
-  // 2. Read request body
+  // 2. Read request body.
   let body;
 
   try {
@@ -73,7 +73,7 @@ export const POST = asyncHandler(async (request) => {
     paymentNote = "",
   } = body || {};
 
-  // 3. Validate required information
+  // 3. Validate required information.
   if (
     !cottageId ||
     !guestName ||
@@ -82,7 +82,10 @@ export const POST = asyncHandler(async (request) => {
     !checkOut ||
     guests === undefined
   ) {
-    throw new ApiError(400, "Please provide all required booking information.");
+    throw new ApiError(
+      400,
+      "Please provide all required booking information."
+    );
   }
 
   if (!mongoose.Types.ObjectId.isValid(cottageId)) {
@@ -97,10 +100,11 @@ export const POST = asyncHandler(async (request) => {
     throw new ApiError(400, "Please enter a valid guest name.");
   }
 
-  if (email && (
-    email.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  )) {
+  if (
+    email &&
+    (email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  ) {
     throw new ApiError(400, "Please enter a valid email address.");
   }
 
@@ -114,7 +118,7 @@ export const POST = asyncHandler(async (request) => {
     throw new ApiError(400, "Please enter a valid phone number.");
   }
 
-  // 4. Validate dates
+  // 4. Validate dates.
   if (!isValidDate(checkIn) || !isValidDate(checkOut)) {
     throw new ApiError(400, "Please select valid booking dates.");
   }
@@ -131,18 +135,17 @@ export const POST = asyncHandler(async (request) => {
   const endDate = new Date(`${checkOut}T00:00:00.000Z`);
 
   const nights = Math.round(
-    (endDate.getTime() - startDate.getTime()) /
-      (1000 * 60 * 60 * 24)
+    (endDate.getTime() - startDate.getTime()) / 86400000
   );
 
-  // 5. Validate guest count
+  // 5. Validate guest count.
   const guestCount = Number(guests);
 
   if (!Number.isInteger(guestCount) || guestCount < 1) {
     throw new ApiError(400, "Please select a valid number of guests.");
   }
 
-  // 6. Find active cottage
+  // 6. Find active cottage.
   const cottage = await Cottage.findOne({
     _id: cottageId,
     isActive: true,
@@ -159,14 +162,14 @@ export const POST = asyncHandler(async (request) => {
     );
   }
 
-  // 7. Calculate booking price on the server
+  // 7. Calculate price on the server.
   const totalPrice = Number(cottage.price) * nights;
 
   if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
     throw new ApiError(400, "Unable to calculate the booking price.");
   }
 
-  // 8. Check cottage availability again
+  // 8. Check cottage availability again on the server.
   const now = new Date();
 
   const overlappingBooking = await Booking.findOne({
@@ -193,20 +196,19 @@ export const POST = asyncHandler(async (request) => {
     );
   }
 
-  // 9. Validate amount actually received
+  // 9. Validate received amount.
   const receivedAmount = Number(amountReceived);
 
   if (
     !Number.isFinite(receivedAmount) ||
     receivedAmount < 0 ||
-    Math.round(receivedAmount * 100) !== receivedAmount * 100 ||
+    Math.abs(receivedAmount * 100 - Math.round(receivedAmount * 100)) > 1e-8 ||
     receivedAmount > totalPrice
   ) {
     throw new ApiError(400, "Please enter a valid received amount.");
   }
 
   const allowedMethods = ["cash", "bkash", "nagad", "bank"];
-
   let paymentRecord = [];
 
   if (receivedAmount > 0) {
@@ -214,8 +216,8 @@ export const POST = asyncHandler(async (request) => {
       throw new ApiError(400, "Please select a valid payment method.");
     }
 
-    const reference = String(paymentReference).trim();
-    const note = String(paymentNote).trim();
+    const reference = String(paymentReference || "").trim();
+    const note = String(paymentNote || "").trim();
 
     if (reference.length > 100 || note.length > 300) {
       throw new ApiError(400, "Payment information is too long.");
@@ -228,15 +230,14 @@ export const POST = asyncHandler(async (request) => {
         reference,
         note,
         paidAt: now,
-        recordedBy: adminId,
+        recordedBy: staffId,
       },
     ];
   }
 
-  // 10. Create confirmed front-desk booking
+  // 10. Create confirmed front-desk booking.
   const booking = await Booking.create({
     bookingSource: "front_desk",
-
     cottage: cottage._id,
 
     guestName: name,
@@ -249,17 +250,15 @@ export const POST = asyncHandler(async (request) => {
 
     totalPrice,
 
-    // Front-desk payments are recorded in the payments array.
-    // Online advance-payment fields are intentionally not used.
+    // Keep online advance-payment fields separate.
     paymentAmount: 0,
     paymentStatus: "unpaid",
 
     payments: paymentRecord,
-
     status: "confirmed",
   });
 
-  // 11. Return booking information
+  // 11. Return booking information.
   return NextResponse.json(
     {
       success: true,

@@ -1,10 +1,11 @@
 
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
 
+import { authorizeApiRequest } from "@/lib/authorize";
+import { PERMISSIONS } from "@/lib/permissions";
+
 import Booking from "@/models/booking";
-import Cottage from "@/models/Cottage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,6 @@ function getDhakaDateRange(dateString) {
   }
 
   const [year, month, day] = dateString.split("-").map(Number);
-
   const checkDate = new Date(Date.UTC(year, month - 1, day));
 
   if (
@@ -34,18 +34,18 @@ function getDhakaDateRange(dateString) {
 
 export async function GET(request) {
   try {
-    const session = await auth();
+    const { user, response } = await authorizeApiRequest(
+      PERMISSIONS.GUESTS_VIEW
+    );
 
-    if (session?.user?.role !== "admin") {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized access." },
-        { status: 403 }
-      );
+    if (response) {
+      return response;
     }
+
+    const isAdmin = user.role === "admin";
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
-
     const dateRange = getDhakaDateRange(date);
 
     if (!dateRange) {
@@ -63,10 +63,9 @@ export async function GET(request) {
     const now = new Date();
     const { start, end } = dateRange;
 
-    const bookings = await Booking.find({
+    let bookingQuery = Booking.find({
       checkIn: { $lt: end },
       checkOut: { $gt: start },
-
       $or: [
         { status: "confirmed" },
         {
@@ -77,8 +76,12 @@ export async function GET(request) {
           ],
         },
       ],
-    })
-      .select(
+    });
+
+    // Managers receive guest-service fields only.
+    // Admins retain the complete existing payment information.
+    if (isAdmin) {
+      bookingQuery = bookingQuery.select(
         [
           "bookingReference",
           "guestName",
@@ -99,56 +102,74 @@ export async function GET(request) {
           "status",
           "createdAt",
         ].join(" ")
-      )
+      );
+    } else {
+      bookingQuery = bookingQuery.select(
+        [
+          "bookingReference",
+          "guestName",
+          "guestEmail",
+          "guestPhone",
+          "cottage",
+          "checkIn",
+          "checkOut",
+          "guests",
+          "status",
+          "createdAt",
+        ].join(" ")
+      );
+    }
+
+    const bookings = await bookingQuery
       .populate("cottage", "name")
       .sort({ checkIn: 1 })
       .lean();
 
     const guests = bookings.map((booking) => {
-      const verifiedAdvance =
-        booking.paymentStatus === "verified"
-          ? Number(booking.paymentAmount || 0)
-          : 0;
-
-      const additionalPayments = (
-        booking.payments || []
-      ).reduce((sum, payment) => {
-        return sum + Number(payment.amount || 0);
-      }, 0);
-
-      const totalReceived = Math.round(
-        (verifiedAdvance + additionalPayments) * 100
-      ) / 100;
-
-      const totalPrice = Number(booking.totalPrice || 0);
-
-      const remainingBalance = Math.max(
-        0,
-        Math.round((totalPrice - totalReceived) * 100) / 100
-      );
-
-      return {
+      const guest = {
         _id: booking._id,
         bookingReference: booking.bookingReference,
-
         guestName: booking.guestName,
         guestEmail: booking.guestEmail,
         guestPhone: booking.guestPhone,
-
         cottage: booking.cottage
           ? {
               _id: booking.cottage._id,
               name: booking.cottage.name,
             }
           : null,
-
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         guests: booking.guests,
-
         status: booking.status,
+        createdAt: booking.createdAt,
+      };
 
-        payment: {
+      if (isAdmin) {
+        const verifiedAdvance =
+          booking.paymentStatus === "verified"
+            ? Number(booking.paymentAmount || 0)
+            : 0;
+
+        const additionalPayments = (
+          booking.payments || []
+        ).reduce((sum, payment) => {
+          return sum + Number(payment.amount || 0);
+        }, 0);
+
+        const totalReceived =
+          Math.round(
+            (verifiedAdvance + additionalPayments) * 100
+          ) / 100;
+
+        const totalPrice = Number(booking.totalPrice || 0);
+
+        const remainingBalance = Math.max(
+          0,
+          Math.round((totalPrice - totalReceived) * 100) / 100
+        );
+
+        guest.payment = {
           status: booking.paymentStatus,
           method: booking.paymentMethod,
           transactionId: booking.transactionId,
@@ -159,10 +180,10 @@ export async function GET(request) {
           additionalPayments,
           totalReceived,
           remainingBalance,
-        },
+        };
+      }
 
-        createdAt: booking.createdAt,
-      };
+      return guest;
     });
 
     return NextResponse.json(

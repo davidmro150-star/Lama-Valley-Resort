@@ -18,6 +18,7 @@ export default function BookingActions({
   status,
   paymentStatus,
   hasAdditionalPayments = false,
+  canDelete = false,
 }) {
   const router = useRouter();
 
@@ -38,6 +39,7 @@ export default function BookingActions({
   ];
 
   const canAttemptDelete =
+    canDelete &&
     deletableStatuses.includes(status) &&
     !["submitted", "verified", "refunded"].includes(paymentStatus) &&
     !hasAdditionalPayments;
@@ -135,7 +137,7 @@ export default function BookingActions({
               type="button"
               disabled={isPending}
               onClick={() => performAction("verify-payment")}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
             >
               {isPending ? (
                 <Loader2 size={13} className="animate-spin" />
@@ -151,7 +153,7 @@ export default function BookingActions({
               type="button"
               disabled={isPending}
               onClick={() => performAction("confirmed", "confirmed")}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#234b3b] px-2 py-2 text-xs font-semibold text-white hover:bg-[#173729] disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#234b3b] px-2 py-2 text-xs font-semibold text-white transition hover:bg-[#173729] disabled:opacity-50"
             >
               {isPending ? (
                 <Loader2 size={13} className="animate-spin" />
@@ -166,7 +168,7 @@ export default function BookingActions({
             type="button"
             disabled={isPending}
             onClick={() => performAction("rejected", "rejected")}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
           >
             {isPending ? (
               <Loader2 size={13} className="animate-spin" />
@@ -189,7 +191,7 @@ export default function BookingActions({
           type="button"
           disabled={isPending}
           onClick={() => performAction("cancelled", "cancelled")}
-          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
         >
           {isPending ? (
             <Loader2 size={13} className="animate-spin" />

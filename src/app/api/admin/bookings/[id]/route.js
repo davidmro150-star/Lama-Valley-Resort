@@ -2,29 +2,36 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 
-import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
+import { authorizeApiRequest } from "@/lib/authorize";
+import { PERMISSIONS } from "@/lib/permissions";
 
 import sendBookingConfirmation from "@/lib/sendBookingConfirmation";
 import sendBookingCancellation from "@/lib/sendBookingCancellation";
 import sendBookingRejection from "@/lib/sendBookingRejection";
+
 import { getCloudinary } from "@/lib/cloudinary";
+
 import Booking from "@/models/booking";
 import Cottage from "@/models/Cottage";
 import RestaurantOrder from "@/models/RestaurantOrder";
+
 
 // Round money to two decimal places.
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
-function validAdminId(session) {
-  const adminId = session?.user?.id || session?.user?._id;
 
-  return adminId && mongoose.Types.ObjectId.isValid(adminId)
-    ? adminId
+// Get the authenticated Admin or Manager ID.
+function validStaffId(session) {
+  const staffId = session?.user?.id || session?.user?._id;
+
+  return staffId && mongoose.Types.ObjectId.isValid(staffId)
+    ? staffId
     : null;
 }
+
 
 // Only cottage_bill restaurant orders belong to the accommodation account.
 async function synchronizeRestaurantPayments(
@@ -174,43 +181,88 @@ async function synchronizeRestaurantPayments(
   return billableOrders;
 }
 
+
 export async function PATCH(request, { params }) {
   try {
-    // 1. Authenticate administrator.
-    const session = await auth();
-
-    if (!session?.user || session.user.role !== "admin") {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized access." },
-        { status: 401 }
-      );
-    }
-
-    // 2. Validate booking ID.
-    const { id } = await params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json(
-        { success: false, message: "Invalid booking ID." },
-        { status: 400 }
-      );
-    }
-
-    // 3. Validate request body.
+    // 1. Validate request body.
     let body;
 
     try {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { success: false, message: "Invalid request body." },
+        {
+          success: false,
+          message: "Invalid request body.",
+        },
         { status: 400 }
       );
     }
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json(
-        { success: false, message: "Invalid request body." },
+        {
+          success: false,
+          message: "Invalid request body.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 2. Determine the required permission for this action.
+    let requiredPermission;
+
+    if (body.action === "sync-restaurant-payments") {
+      requiredPermission = PERMISSIONS.RESTAURANT_PAYMENTS_SYNC;
+    } else if (body.action === "record-payment") {
+      requiredPermission = PERMISSIONS.PAYMENTS_RECORD;
+    } else if (body.action === "verify-payment") {
+      requiredPermission = PERMISSIONS.PAYMENTS_VERIFY;
+    } else if (
+      body.action === undefined ||
+      body.action === null
+    ) {
+      if (body.status === "cancelled") {
+        requiredPermission = PERMISSIONS.BOOKINGS_CANCEL;
+      } else if (
+        body.status === "confirmed" ||
+        body.status === "rejected"
+      ) {
+        requiredPermission = PERMISSIONS.BOOKINGS_UPDATE;
+      }
+    }
+
+    if (!requiredPermission) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid booking action.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 3. Authorize the authenticated staff member.
+    const { user, response } = await authorizeApiRequest(
+      requiredPermission
+    );
+
+    if (response) {
+      return response;
+    }
+
+    // Keep the existing session references working.
+    const session = { user };
+
+    // 4. Validate booking ID.
+    const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid booking ID.",
+        },
         { status: 400 }
       );
     }
@@ -221,12 +273,15 @@ export async function PATCH(request, { params }) {
 
     if (!existingBooking) {
       return NextResponse.json(
-        { success: false, message: "Booking not found." },
+        {
+          success: false,
+          message: "Booking not found.",
+        },
         { status: 404 }
       );
     }
 
-    // 4. Synchronize existing booking payments with cottage-bill orders.
+    // 5. Synchronize existing booking payments with cottage-bill orders.
     if (body.action === "sync-restaurant-payments") {
       const dbSession = await mongoose.startSession();
 
@@ -327,16 +382,16 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // 5. Record additional accommodation / checkout payment.
+    // 6. Record additional accommodation / checkout payment.
     if (body.action === "record-payment") {
-      const adminId = validAdminId(session);
+      const staffId = validStaffId(session);
 
-      if (!adminId) {
+      if (!staffId) {
         return NextResponse.json(
           {
             success: false,
             message:
-              "Your administrator account ID is missing or invalid. Please sign in again.",
+              "Your staff account ID is missing or invalid. Please sign in again.",
           },
           { status: 400 }
         );
@@ -496,7 +551,7 @@ export async function PATCH(request, { params }) {
             reference,
             note,
             paidAt: new Date(),
-            recordedBy: new mongoose.Types.ObjectId(adminId),
+            recordedBy: new mongoose.Types.ObjectId(staffId),
           });
 
           await booking.save({ session: dbSession });
@@ -580,7 +635,7 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // 6. Verify submitted online advance payment.
+    // 7. Verify submitted online advance payment.
     if (body.action === "verify-payment") {
       if (existingBooking.status !== "pending") {
         return NextResponse.json(
@@ -620,16 +675,24 @@ export async function PATCH(request, { params }) {
         );
       }
 
-      const adminId = validAdminId(session);
+      const staffId = validStaffId(session);
+
+      if (!staffId) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Your staff account ID is missing or invalid. Please sign in again.",
+          },
+          { status: 400 }
+        );
+      }
 
       const updateFields = {
         paymentStatus: "verified",
         paymentVerifiedAt: new Date(),
+        paymentVerifiedBy: staffId,
       };
-
-      if (adminId) {
-        updateFields.paymentVerifiedBy = adminId;
-      }
 
       const booking = await Booking.findOneAndUpdate(
         {
@@ -670,7 +733,7 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // 7. Validate booking status action.
+    // 8. Validate booking status action.
     const { status } = body;
 
     const allowedStatuses = [
@@ -694,7 +757,7 @@ export async function PATCH(request, { params }) {
 
     let booking;
 
-    // 8. Confirm booking with cottage-level concurrency protection.
+    // 9. Confirm booking with cottage-level concurrency protection.
     if (status === "confirmed") {
       const dbSession = await mongoose.startSession();
 
@@ -883,7 +946,7 @@ export async function PATCH(request, { params }) {
       }
     }
 
-    // 9. Send appropriate booking email.
+    // 10. Send appropriate booking email.
     let emailSent = false;
 
     try {
@@ -913,7 +976,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 10. Prepare response.
+    // 11. Prepare response.
     let message;
 
     if (status === "confirmed") {
@@ -955,17 +1018,15 @@ export async function PATCH(request, { params }) {
 }
 
 
-
 export async function DELETE(request, { params }) {
   try {
-    // 1. Authenticate administrator.
-    const session = await auth();
+    // 1. Only Admins with booking deletion permission can delete.
+    const { response } = await authorizeApiRequest(
+      PERMISSIONS.BOOKINGS_DELETE
+    );
 
-    if (!session?.user || session.user.role !== "admin") {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized access." },
-        { status: 401 }
-      );
+    if (response) {
+      return response;
     }
 
     // 2. Validate booking ID.
@@ -973,7 +1034,10 @@ export async function DELETE(request, { params }) {
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
-        { success: false, message: "Invalid booking ID." },
+        {
+          success: false,
+          message: "Invalid booking ID.",
+        },
         { status: 400 }
       );
     }
@@ -985,7 +1049,10 @@ export async function DELETE(request, { params }) {
 
     if (!booking) {
       return NextResponse.json(
-        { success: false, message: "Booking not found." },
+        {
+          success: false,
+          message: "Booking not found.",
+        },
         { status: 404 }
       );
     }
@@ -1027,12 +1094,15 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    if (booking.paymentStatus !== "unpaid" &&
-        booking.paymentStatus !== "rejected") {
+    if (
+      booking.paymentStatus !== "unpaid" &&
+      booking.paymentStatus !== "rejected"
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "This booking's payment status does not allow deletion.",
+          message:
+            "This booking's payment status does not allow deletion.",
         },
         { status: 409 }
       );
@@ -1136,4 +1206,3 @@ export async function DELETE(request, { params }) {
     );
   }
 }
-
