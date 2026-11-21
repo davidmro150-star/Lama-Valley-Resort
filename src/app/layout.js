@@ -3,6 +3,9 @@ import "./globals.css";
 import connectDB from "@/lib/mongodb";
 import SiteSettings from "@/models/SiteSettings";
 
+// Render pages dynamically because SEO settings come from MongoDB.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata() {
   const defaultMetadata = {
     resortName: "Lama Valley Resort & Restaurant",
@@ -31,10 +34,10 @@ export async function generateMetadata() {
         settings.shortDescription || "";
     }
   } catch (error) {
-    console.error("SEO metadata error:", error);
+    console.error("SEO metadata error:", error.message);
   }
 
-  const seo = defaultMetadata.seo;
+  const seo = defaultMetadata.seo || {};
 
   const title =
     seo.metaTitle ||
@@ -99,7 +102,7 @@ export async function generateMetadata() {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+   <html lang="en" data-scroll-behavior="smooth">
       <body className="min-h-screen antialiased">
         {children}
       </body>

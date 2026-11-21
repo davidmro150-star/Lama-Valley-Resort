@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
 import Booking from "@/models/booking";
 import BookingActions from "@/components/admin/BookingActions";
-
+import Cottage from "@/models/Cottage";
 export const dynamic = "force-dynamic";
 
 function formatDate(date) {

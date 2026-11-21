@@ -43,3 +43,5 @@ next-env.d.ts
 # local database and backups
 *.dump
 *.backup
+# VS Code recordings
+vs-code-recorder/

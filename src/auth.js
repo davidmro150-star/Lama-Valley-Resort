@@ -41,7 +41,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         await connectDB();
 
-        const user = await User.findOne({ email }).select("+password");
+        const user = await User.findOne({ email })
+          .select("+password +passwordChangedAt");
 
         if (
           !user ||
@@ -65,6 +66,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           email: user.email,
           role: user.role,
+          passwordChangedAt:
+            user.passwordChangedAt?.getTime() || 0,
         };
       },
     }),
@@ -84,6 +87,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.passwordChangedAt =
+          user.passwordChangedAt || 0;
 
         return token;
       }
@@ -95,13 +100,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       await connectDB();
 
       const currentUser = await User.findById(token.id)
-        .select("role isActive")
+        .select("role isActive passwordChangedAt")
         .lean();
 
       if (
         !currentUser ||
         !currentUser.isActive ||
         !ALLOWED_ROLES.includes(currentUser.role)
+      ) {
+        return null;
+      }
+
+      const currentPasswordChangedAt =
+        currentUser.passwordChangedAt
+          ? new Date(currentUser.passwordChangedAt).getTime()
+          : 0;
+
+      if (
+        Number(token.passwordChangedAt || 0) !==
+        currentPasswordChangedAt
       ) {
         return null;
       }

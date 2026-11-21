@@ -18,6 +18,7 @@ import {
   Users,
   ClipboardList,
   ClipboardPlus,
+  KeyRound,
 } from "lucide-react";
 
 const navigation = [
@@ -118,6 +119,12 @@ const navigation = [
     title: "PREFERENCES",
     items: [
       {
+        name: "Change Password",
+        href: "/admin/change-password",
+        icon: KeyRound,
+        roles: ["admin", "manager"],
+      },
+      {
         name: "Settings",
         href: "/admin/settings",
         icon: Settings,
@@ -134,7 +141,7 @@ export default function AdminSidebar({ role = "admin" }) {
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        item.roles.includes(role)
+        item.roles?.includes(role) ?? false
       ),
     }))
     .filter((group) => group.items.length > 0);

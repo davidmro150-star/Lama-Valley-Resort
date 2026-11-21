@@ -7,6 +7,7 @@ import { getAuthorizedUser } from "@/lib/authorize";
 import { PERMISSIONS } from "@/lib/permissions";
 
 import Booking from "@/models/booking";
+import Cottage from "@/models/Cottage";
 import RestaurantOrder from "@/models/RestaurantOrder";
 import DashboardAnalytics from "@/components/admin/DashboardAnalytics";
 
@@ -49,12 +50,16 @@ function getStatusStyle(status) {
   switch (status) {
     case "confirmed":
       return "bg-emerald-50 text-emerald-700";
+
     case "pending":
       return "bg-amber-50 text-amber-700";
+
     case "rejected":
       return "bg-red-50 text-red-700";
+
     case "cancelled":
       return "bg-gray-100 text-gray-600";
+
     default:
       return "bg-gray-100 text-gray-600";
   }
@@ -154,6 +159,7 @@ function PageHeading() {
 
       <div className="flex items-center gap-2 rounded-lg border border-[#eeece4] bg-white px-4 py-2.5 text-xs text-[#777d73]">
         <CalendarDays size={15} />
+
         {new Date().toLocaleDateString("en-GB", {
           month: "long",
           year: "numeric",
@@ -216,7 +222,7 @@ function QuickManagement() {
 /* -------------------------------------------------------
    MANAGER DASHBOARD
    Operational booking information only.
-   No revenue, payment history, or complete booking history.
+   No revenue or financial summaries.
 ------------------------------------------------------- */
 
 function ManagerDashboard({ stats, recentBookings }) {
@@ -387,11 +393,9 @@ function AdminDashboard({
         </div>
       </section>
 
-      {/* Admin-only financial analytics */}
       <DashboardAnalytics />
 
       <section className="grid gap-5 xl:grid-cols-3">
-        {/* Recent Bookings */}
         <div className="overflow-hidden rounded-xl border border-[#eeece4] bg-white xl:col-span-2">
           <div className="flex items-center justify-between border-b border-[#eeece4] px-5 py-5">
             <div>
@@ -501,7 +505,6 @@ function AdminDashboard({
           </div>
         </div>
 
-        {/* Admin-only Revenue Summary */}
         <div className="rounded-xl bg-[#173729] p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -552,7 +555,9 @@ function AdminDashboard({
 ------------------------------------------------------- */
 
 export default async function AdminDashboardPage() {
-  const user = await getAuthorizedUser(PERMISSIONS.DASHBOARD_VIEW);
+  const user = await getAuthorizedUser(
+    PERMISSIONS.DASHBOARD_VIEW
+  );
 
   if (!user) {
     redirect("/admin/login");
@@ -560,9 +565,9 @@ export default async function AdminDashboardPage() {
 
   await connectDB();
 
-  /* MANAGER: fetch operational data only */
+  /* MANAGER: operational data only */
+
   if (user.role === "manager") {
-    // Start of today in Bangladesh time.
     const dateParts = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Dhaka",
       year: "numeric",
@@ -578,7 +583,6 @@ export default async function AdminDashboardPage() {
       `${dateValues.year}-${dateValues.month}-${dateValues.day}T00:00:00+06:00`
     );
 
-    // Only current/upcoming pending and confirmed reservations.
     const currentBookingFilter = {
       status: { $in: ["pending", "confirmed"] },
       checkOut: { $gte: today },
@@ -662,7 +666,6 @@ export default async function AdminDashboardPage() {
       .lean(),
   ]);
 
-  // Group restaurant orders by booking.
   const restaurantPaymentsByBooking = new Map();
 
   for (const order of restaurantOrders) {
@@ -717,7 +720,6 @@ export default async function AdminDashboardPage() {
     );
   }
 
-  // Paid/unpaid booking counts are based on cottage accommodation.
   for (const booking of activeBookings) {
     const verifiedAdvance =
       booking.paymentStatus === "verified"
