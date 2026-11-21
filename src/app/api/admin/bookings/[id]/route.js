@@ -16,12 +16,10 @@ import Booking from "@/models/booking";
 import Cottage from "@/models/Cottage";
 import RestaurantOrder from "@/models/RestaurantOrder";
 
-
 // Round money to two decimal places.
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
-
 
 // Get the authenticated Admin or Manager ID.
 function validStaffId(session) {
@@ -32,6 +30,19 @@ function validStaffId(session) {
     : null;
 }
 
+// Calculate payments made directly against restaurant orders.
+function getDirectRestaurantPayments(restaurantOrders) {
+  return money(
+    restaurantOrders.reduce((total, order) => {
+      const directPayments = (order.payments || []).reduce(
+        (sum, payment) => sum + money(payment.amount),
+        0
+      );
+
+      return total + directPayments;
+    }, 0)
+  );
+}
 
 // Only cottage_bill restaurant orders belong to the accommodation account.
 async function synchronizeRestaurantPayments(
@@ -181,7 +192,6 @@ async function synchronizeRestaurantPayments(
   return billableOrders;
 }
 
-
 export async function PATCH(request, { params }) {
   try {
     // 1. Validate request body.
@@ -251,7 +261,6 @@ export async function PATCH(request, { params }) {
       return response;
     }
 
-    // Keep the existing session references working.
     const session = { user };
 
     // 4. Validate booking ID.
@@ -304,19 +313,14 @@ export async function PATCH(request, { params }) {
             return;
           }
 
-          if (
-            booking.status !== "confirmed" ||
-            (
-              booking.bookingSource !== "front_desk" &&
-              booking.paymentStatus !== "verified"
-            )
-          ) {
+          // Both Admin and Manager can synchronize any confirmed booking.
+          if (booking.status !== "confirmed") {
             syncResult = {
               status: 409,
               data: {
                 success: false,
                 message:
-                  "Only confirmed front-desk bookings or confirmed bookings with verified online advances can be synchronized.",
+                  "Only confirmed bookings can have their restaurant payments synchronized.",
               },
             };
             return;
@@ -469,19 +473,14 @@ export async function PATCH(request, { params }) {
             return;
           }
 
-          if (
-            booking.status !== "confirmed" ||
-            (
-              booking.bookingSource !== "front_desk" &&
-              booking.paymentStatus !== "verified"
-            )
-          ) {
+          // Additional payments are allowed for every confirmed booking.
+          if (booking.status !== "confirmed") {
             paymentResult = {
               status: 409,
               data: {
                 success: false,
                 message:
-                  "Additional payments can only be recorded for confirmed front-desk bookings or confirmed bookings with verified online advances.",
+                  "Additional payments can only be recorded for confirmed bookings.",
               },
             };
             return;
@@ -511,6 +510,10 @@ export async function PATCH(request, { params }) {
             0
           );
 
+          // Include direct payments already received by the restaurant.
+          const directRestaurantPayments =
+            getDirectRestaurantPayments(billableOrders);
+
           const cottageTotal = money(booking.totalPrice);
 
           const restaurantTotal = billableOrders.reduce(
@@ -523,7 +526,9 @@ export async function PATCH(request, { params }) {
           );
 
           const totalReceived = money(
-            verifiedAdvance + bookingAdditionalPayments
+            verifiedAdvance +
+              bookingAdditionalPayments +
+              directRestaurantPayments
           );
 
           const outstandingAmount = Math.max(
@@ -571,7 +576,9 @@ export async function PATCH(request, { params }) {
           );
 
           const updatedTotalReceived = money(
-            verifiedAdvance + updatedBookingPayments
+            verifiedAdvance +
+              updatedBookingPayments +
+              directRestaurantPayments
           );
 
           const remainingBalance = Math.max(
@@ -600,7 +607,7 @@ export async function PATCH(request, { params }) {
             data: {
               success: true,
               message:
-                "Accommodation payment recorded and cottage-bill restaurant payment statuses synchronized successfully.",
+                "Payment recorded and cottage-bill restaurant payment statuses synchronized successfully.",
               booking: {
                 id: booking._id.toString(),
                 status: booking.status,
@@ -608,6 +615,7 @@ export async function PATCH(request, { params }) {
                 restaurantTotal,
                 grandTotal,
                 totalReceived: updatedTotalReceived,
+                directRestaurantPayments,
                 remainingBalance,
                 restaurantCheckoutAllocations:
                   money(allocatedRestaurantPayments),
@@ -637,12 +645,15 @@ export async function PATCH(request, { params }) {
 
     // 7. Verify submitted online advance payment.
     if (body.action === "verify-payment") {
-      if (existingBooking.status !== "pending") {
+      // Payment can be verified before or after booking confirmation.
+      if (
+        !["pending", "confirmed"].includes(existingBooking.status)
+      ) {
         return NextResponse.json(
           {
             success: false,
             message:
-              "Only pending bookings can have their payment verified.",
+              "Payment can only be verified for pending or confirmed bookings.",
           },
           { status: 409 }
         );
@@ -688,20 +699,18 @@ export async function PATCH(request, { params }) {
         );
       }
 
-      const updateFields = {
-        paymentStatus: "verified",
-        paymentVerifiedAt: new Date(),
-        paymentVerifiedBy: staffId,
-      };
-
       const booking = await Booking.findOneAndUpdate(
         {
           _id: id,
-          status: "pending",
+          status: { $in: ["pending", "confirmed"] },
           paymentStatus: "submitted",
         },
         {
-          $set: updateFields,
+          $set: {
+            paymentStatus: "verified",
+            paymentVerifiedAt: new Date(),
+            paymentVerifiedBy: staffId,
+          },
         },
         {
           new: true,
@@ -714,7 +723,7 @@ export async function PATCH(request, { params }) {
           {
             success: false,
             message:
-              "Payment has already been updated. Please refresh.",
+              "Payment or booking status has already changed. Please refresh.",
           },
           { status: 409 }
         );
@@ -723,7 +732,7 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({
         success: true,
         message:
-          "Payment verified successfully. You can now confirm this booking.",
+          "Payment verified successfully. The booking status has not been changed.",
         booking: {
           id: booking._id.toString(),
           status: booking.status,
@@ -768,10 +777,10 @@ export async function PATCH(request, { params }) {
           booking = null;
           confirmationResult = null;
 
+          // Payment verification is NOT required for confirmation.
           const currentBooking = await Booking.findOne({
             _id: id,
             status: "pending",
-            paymentStatus: "verified",
           }).session(dbSession);
 
           if (!currentBooking) {
@@ -780,7 +789,7 @@ export async function PATCH(request, { params }) {
               data: {
                 success: false,
                 message:
-                  "This booking is no longer pending or its payment has not been verified.",
+                  "This booking is no longer pending. Please refresh and review its current status.",
               },
             };
             return;
@@ -864,11 +873,11 @@ export async function PATCH(request, { params }) {
             return;
           }
 
+          // Confirm without changing paymentStatus.
           booking = await Booking.findOneAndUpdate(
             {
               _id: id,
               status: "pending",
-              paymentStatus: "verified",
             },
             {
               $set: { status: "confirmed" },
@@ -1018,9 +1027,10 @@ export async function PATCH(request, { params }) {
 }
 
 
+
 export async function DELETE(request, { params }) {
   try {
-    // 1. Only Admins with booking deletion permission can delete.
+    // Only Admin can permanently delete bookings.
     const { response } = await authorizeApiRequest(
       PERMISSIONS.BOOKINGS_DELETE
     );
@@ -1029,7 +1039,6 @@ export async function DELETE(request, { params }) {
       return response;
     }
 
-    // 2. Validate booking ID.
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1044,7 +1053,6 @@ export async function DELETE(request, { params }) {
 
     await connectDB();
 
-    // 3. Find booking.
     const booking = await Booking.findById(id);
 
     if (!booking) {
@@ -1057,69 +1065,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // 4. Only allow deletion of non-confirmed bookings.
-    const allowedStatuses = [
-      "pending",
-      "cancelled",
-      "rejected",
-      "expired",
-    ];
-
-    if (!allowedStatuses.includes(booking.status)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Only pending, cancelled, rejected, or expired bookings can be deleted.",
-        },
-        { status: 409 }
-      );
-    }
-
-    // 5. Protect actual payment history.
-    if (
-      ["submitted", "verified", "refunded"].includes(
-        booking.paymentStatus
-      ) ||
-      booking.paymentVerifiedAt ||
-      booking.paymentVerifiedBy
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "This booking contains payment information that must be preserved. Deletion is not allowed.",
-        },
-        { status: 409 }
-      );
-    }
-
-    if (
-      booking.paymentStatus !== "unpaid" &&
-      booking.paymentStatus !== "rejected"
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "This booking's payment status does not allow deletion.",
-        },
-        { status: 409 }
-      );
-    }
-
-    if (booking.payments?.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "This booking has additional payment records. Delete is not allowed.",
-        },
-        { status: 409 }
-      );
-    }
-
-    // 6. Preserve restaurant orders and their financial history.
+    // Protect separate restaurant order and sales records.
     const linkedRestaurantOrder = await RestaurantOrder.findOne({
       booking: booking._id,
     })
@@ -1131,38 +1077,30 @@ export async function DELETE(request, { params }) {
         {
           success: false,
           message:
-            "This booking has linked restaurant orders. Deletion is blocked to protect restaurant sales and payment history.",
+            "This booking has linked restaurant orders. Remove or resolve those records first.",
         },
         { status: 409 }
       );
     }
 
-    // 7. Save Cloudinary image ID before deleting booking.
+    // Save payment screenshot information before deleting.
     const paymentProofPublicId =
       booking.paymentProof?.publicId || null;
 
-    // 8. Permanently delete booking from MongoDB.
-    const deletedBooking = await Booking.findOneAndDelete({
-      _id: id,
-      status: booking.status,
-      paymentStatus: booking.paymentStatus,
-      payments: { $size: 0 },
-      paymentVerifiedAt: null,
-      paymentVerifiedBy: null,
-    });
+    // Admin can delete bookings regardless of status or payment history.
+    const deletedBooking = await Booking.findByIdAndDelete(id);
 
     if (!deletedBooking) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "The booking changed during deletion. Refresh and try again.",
+          message: "Booking could not be deleted. Please try again.",
         },
         { status: 409 }
       );
     }
 
-    // 9. Clean up the associated Cloudinary screenshot.
+    // Delete the associated Cloudinary payment screenshot.
     let imageCleanupWarning = false;
 
     if (paymentProofPublicId) {
@@ -1176,26 +1114,27 @@ export async function DELETE(request, { params }) {
 
         if (!["ok", "not found"].includes(result.result)) {
           imageCleanupWarning = true;
+          console.error(
+            "Cloudinary cleanup result:",
+            result.result
+          );
         }
-      } catch (cloudinaryError) {
+      } catch (error) {
         imageCleanupWarning = true;
-
-        console.error(
-          "Payment proof cleanup error:",
-          cloudinaryError
-        );
+        console.error("Cloudinary cleanup error:", error);
       }
     }
 
     return NextResponse.json({
       success: true,
       message: imageCleanupWarning
-        ? "Booking deleted, but its Cloudinary image could not be removed. Please check Cloudinary."
+        ? "Booking deleted, but its payment screenshot could not be removed."
         : "Booking deleted successfully.",
+      deletedBookingId: deletedBooking._id.toString(),
       imageCleanupWarning,
     });
   } catch (error) {
-    console.error("Admin booking deletion error:", error);
+    console.error("Booking deletion error:", error);
 
     return NextResponse.json(
       {
@@ -1206,3 +1145,5 @@ export async function DELETE(request, { params }) {
     );
   }
 }
+
+

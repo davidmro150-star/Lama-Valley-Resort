@@ -24,6 +24,7 @@ export default function BookingActions({
 
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
 
   const isPendingBooking = status === "pending";
   const isConfirmedBooking = status === "confirmed";
@@ -31,20 +32,29 @@ export default function BookingActions({
   const isPaymentSubmitted = paymentStatus === "submitted";
   const isPaymentVerified = paymentStatus === "verified";
 
-  const deletableStatuses = [
-    "pending",
-    "cancelled",
-    "rejected",
-    "expired",
-  ];
+  // Admin can delete bookings regardless of status or payment history.
+  // Manager cannot delete because canDelete is false.
+  const canAttemptDelete = canDelete === true;
 
-  const canAttemptDelete =
-    canDelete &&
-    deletableStatuses.includes(status) &&
-    !["submitted", "verified", "refunded"].includes(paymentStatus) &&
-    !hasAdditionalPayments;
+  function showMessage(text, type = "error") {
+    setMessage(text);
+    setMessageType(type);
+  }
+
+  async function readResponse(response) {
+    try {
+      return await response.json();
+    } catch {
+      return {
+        success: false,
+        message: "The server returned an invalid response.",
+      };
+    }
+  }
 
   async function performAction(action, value = null) {
+    if (isPending) return;
+
     const labels = {
       "verify-payment": "verify this payment",
       confirmed: "confirm this booking",
@@ -52,11 +62,16 @@ export default function BookingActions({
       cancelled: "cancel this booking",
     };
 
-    if (!window.confirm(`Are you sure you want to ${labels[action]}?`)) {
+    const actionLabel = labels[action];
+
+    if (!actionLabel) return;
+
+    if (!window.confirm(`Are you sure you want to ${actionLabel}?`)) {
       return;
     }
 
     setMessage("");
+    setMessageType("");
 
     startTransition(async () => {
       try {
@@ -75,33 +90,51 @@ export default function BookingActions({
           }
         );
 
-        const result = await response.json();
+        const result = await readResponse(response);
 
-        if (!response.ok) {
-          setMessage(result.message || "Unable to update booking.");
+        if (!response.ok || result.success === false) {
+          showMessage(
+            result.message || "Unable to update booking."
+          );
           return;
         }
 
-        setMessage(result.message || "Booking updated successfully.");
+        showMessage(
+          result.message || "Booking updated successfully.",
+          "success"
+        );
+
         router.refresh();
       } catch (error) {
         console.error("Booking action error:", error);
-        setMessage("Something went wrong. Please try again.");
+
+        showMessage(
+          "Unable to connect to the server. Please try again."
+        );
       }
     });
   }
 
   async function deleteBooking() {
+    if (isPending) return;
+
+    if (!canAttemptDelete) {
+      showMessage("You are not allowed to delete this booking.");
+      return;
+    }
+
     const confirmed = window.confirm(
       "PERMANENT DELETE WARNING\n\n" +
-      "This will permanently remove this booking from MongoDB.\n\n" +
+      "You are about to permanently delete this booking.\n\n" +
+      "This includes its booking information and payment history.\n\n" +
       "This action cannot be undone.\n\n" +
-      "Are you sure you want to continue?"
+      "Are you absolutely sure you want to continue?"
     );
 
     if (!confirmed) return;
 
     setMessage("");
+    setMessageType("");
 
     startTransition(async () => {
       try {
@@ -112,24 +145,36 @@ export default function BookingActions({
           }
         );
 
-        const result = await response.json();
+        const result = await readResponse(response);
 
-        if (!response.ok) {
-          setMessage(result.message || "Unable to delete booking.");
+        // Confirm successful deletion from the API.
+        if (!response.ok || result.success !== true) {
+          showMessage(
+            result.message || "Unable to delete booking."
+          );
           return;
         }
 
-        setMessage(result.message || "Booking deleted successfully.");
+        showMessage(
+          result.message || "Booking deleted successfully.",
+          "success"
+        );
+
+        // Refresh the server-rendered booking list.
         router.refresh();
       } catch (error) {
         console.error("Booking deletion error:", error);
-        setMessage("Something went wrong. Please try again.");
+
+        showMessage(
+          "Unable to connect to the server. Please try again."
+        );
       }
     });
   }
 
   return (
     <div className="min-w-[140px] space-y-2">
+      {/* Pending booking actions */}
       {isPendingBooking && (
         <>
           {isPaymentSubmitted && (
@@ -137,7 +182,7 @@ export default function BookingActions({
               type="button"
               disabled={isPending}
               onClick={() => performAction("verify-payment")}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPending ? (
                 <Loader2 size={13} className="animate-spin" />
@@ -152,8 +197,10 @@ export default function BookingActions({
             <button
               type="button"
               disabled={isPending}
-              onClick={() => performAction("confirmed", "confirmed")}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#234b3b] px-2 py-2 text-xs font-semibold text-white transition hover:bg-[#173729] disabled:opacity-50"
+              onClick={() =>
+                performAction("confirmed", "confirmed")
+              }
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#234b3b] px-2 py-2 text-xs font-semibold text-white transition hover:bg-[#173729] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPending ? (
                 <Loader2 size={13} className="animate-spin" />
@@ -168,7 +215,7 @@ export default function BookingActions({
             type="button"
             disabled={isPending}
             onClick={() => performAction("rejected", "rejected")}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? (
               <Loader2 size={13} className="animate-spin" />
@@ -186,12 +233,15 @@ export default function BookingActions({
         </>
       )}
 
+      {/* Confirmed booking action */}
       {isConfirmedBooking && (
         <button
           type="button"
           disabled={isPending}
-          onClick={() => performAction("cancelled", "cancelled")}
-          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+          onClick={() =>
+            performAction("cancelled", "cancelled")
+          }
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isPending ? (
             <Loader2 size={13} className="animate-spin" />
@@ -202,12 +252,13 @@ export default function BookingActions({
         </button>
       )}
 
+      {/* Admin-only permanent deletion */}
       {canAttemptDelete && (
         <button
           type="button"
           disabled={isPending}
           onClick={deleteBooking}
-          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isPending ? (
             <Loader2 size={13} className="animate-spin" />
@@ -218,9 +269,13 @@ export default function BookingActions({
         </button>
       )}
 
+      {/* Feedback */}
       {message && (
         <p
-          className="max-w-[200px] text-[10px] text-gray-600"
+          className={`max-w-[200px] text-[10px] ${messageType === "success"
+              ? "text-green-700"
+              : "text-red-600"
+            }`}
           role="status"
         >
           {message}
