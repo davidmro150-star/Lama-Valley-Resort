@@ -27,7 +27,7 @@ export default async function StaysSection() {
   const content = homePage?.staysSection || {};
 
   return (
-    <section className="section-padding overflow-hidden bg-surface-muted">
+    <section className="section-padding !pt-6 sm:!pt-16 overflow-hidden bg-surface-muted">
       <div className="container min-w-0">
         {/* Section Heading */}
         <div className="section-heading mb-10 sm:mb-14">
@@ -35,11 +35,11 @@ export default async function StaysSection() {
             {content.eyebrow || "Stay With Us"}
           </p>
 
-          <h2 className="section-title !text-[25px] sm:!text-[40px]">
+          <h2 className="section-title !text-[22px] sm:!text-[40px]">
             {content.title || "Find Your Perfect Place to Stay"}
           </h2>
 
-          <p className="section-description">
+          <p className="section-description !text-[14px]">
             {content.description ||
               "Discover a comfortable place to unwind and enjoy the natural beauty of Lama, Bandarban."}
           </p>
@@ -163,7 +163,7 @@ export default async function StaysSection() {
         )}
 
         {/* View All Accommodation Button */}
-        <div className="mt-6 text-center sm:mt-8">
+        <div className="mt-4 text-center sm:mt-8">
           <Link
             href={content.buttonLink || "/stays"}
             style={{
@@ -178,6 +178,7 @@ export default async function StaysSection() {
               boxShadow: "none",
               opacity: 1,
               transform: "none",
+          
               textDecoration: "none",
             }}
           >

@@ -77,18 +77,18 @@ export default async function RestaurantSection() {
       : defaultDiningItems;
 
   return (
-    <section className="section-padding overflow-hidden bg-background">
+    <section className="section-padding !pt-3 sm:!pt-16 overflow-hidden bg-background">
       <div className="container min-w-0">
         <div className="section-heading mb-10 sm:mb-14">
           <p className="section-eyebrow">
             {content.eyebrow || "Food & Dining"}
           </p>
 
-          <h2 className="section-title !text-[25px] sm:!text-[40px]">
+          <h2 className="section-title !text-[20px] sm:!text-[40px]">
             {content.title || "A Delicious Experience in the Hills"}
           </h2>
 
-          <p className="section-description">
+          <p className="section-description !text-[14px]">
             {content.description ||
               "Enjoy a welcoming dining experience and discover delicious flavours during your stay at Lama Valley."}
           </p>

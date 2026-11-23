@@ -103,25 +103,57 @@ export default async function WhyChooseUs() {
 
   return (
     <section className="section-padding bg-primary-dark text-white">
-      <div className="container">
+      <div className="container min-w-0">
         {/* Section Heading */}
-        <div className="section-heading mb-14">
-          <p className="section-eyebrow !text-accent-light">
+        <div className="section-heading mb-10 sm:mb-14">
+          <p className="section-eyebrow !text-accent-light !text-[10px]">
             {content.eyebrow || "The Lama Valley Experience"}
           </p>
 
-          <h2 className="section-title !text-[35px] !text-white">
+          <h2 className="section-title !text-[18px] sm:!text-[35px] !text-white">
             {content.title || "A Place to Relax, Explore & Reconnect"}
           </h2>
 
-          <p className="text-base leading-8 text-white/70">
+          <p className="text-[14px] leading-8 text-white/70">
             {content.description ||
               "Discover what makes a visit to Lama Valley a memorable escape in the hills of Bandarban."}
           </p>
         </div>
 
-        {/* Feature Cards */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Automatic Slider: Mobile and Tablet */}
+        <div className="feature-slider lg:hidden">
+          <div className="feature-slider-track">
+            {[...features, ...features].map((feature, index) => {
+              const Icon = iconMap[feature.icon] || Mountain;
+              const isDuplicate = index >= features.length;
+
+              return (
+                <div
+                  key={`${feature._id || feature.id || index}-${index}`}
+                  aria-hidden={isDuplicate ? "true" : undefined}
+                  className="feature-slide"
+                >
+                  <div className="h-full rounded-xl border border-white/15 bg-white/5 p-5 sm:p-7">
+                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent-light sm:h-14 sm:w-14">
+                      <Icon size={25} strokeWidth={1.6} />
+                    </div>
+
+                    <h3 className="mb-3 text-xl text-white">
+                      {feature.title}
+                    </h3>
+
+                    <p className="text-base leading-7 text-white/65">
+                      {feature.description}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Desktop Grid: 4 Cards */}
+        <div className="hidden gap-6 lg:grid lg:grid-cols-4">
           {features.map((feature, index) => {
             const Icon = iconMap[feature.icon] || Mountain;
 

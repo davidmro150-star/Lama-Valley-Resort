@@ -149,7 +149,7 @@ export default function HeroSection() {
             {content.heroLocation}
           </p>
 
-          <h1 className="mb-7 whitespace-pre-line font-display text-4xl leading-[1.12] text-white sm:text-6xl lg:text-7xl">
+          <h1 className="mb-7 whitespace-pre-line font-display text-4xl leading-[1.12] text-white sm:text-6xl lg:text-8xl">
             {content.heroTitle}
           </h1>
 
@@ -160,7 +160,7 @@ export default function HeroSection() {
           <div className="flex flex-row gap-3 sm:gap-4">
             <Link
               href={content.primaryButtonLink || "/stays"}
-              className="btn hero-btn inline-flex min-w-0 flex-1 justify-center bg-accent px-3 text-primary-dark hover:bg-accent-light sm:px-7"
+              className="btn hero-btn inline-flex min-w-0 flex-1 justify-center bg-accent  px-3 text-primary-dark hover:bg-accent-light sm:px-7"
             >
               {content.primaryButtonText}
               <ArrowUpRight size={16} />
@@ -168,7 +168,7 @@ export default function HeroSection() {
 
             <Link
               href={content.secondaryButtonLink || "/about"}
-              className="btn hero-btn inline-flex min-w-0 flex-1 justify-center border border-white/70 bg-[#234b3b] px-3 !text-white transition-colors hover:bg-white hover:!text-primary-dark sm:px-7"
+              className="btn hero-btn-secondary inline-flex min-w-0 flex-1 justify-center border border-white/70 bg-[#234b3b] px-3 !text-white transition-colors hover:bg-white hover:!text-primary-dark sm:px-7"
             >
               {content.secondaryButtonText}
               <ArrowRight size={16} />
@@ -181,17 +181,18 @@ export default function HeroSection() {
 
       {/* Slider Controls */}
       {heroImages.length > 1 && (
-        <div className="absolute bottom-7 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 sm:left-auto sm:right-8 sm:translate-x-0 lg:right-25">
+        <div className="absolute bottom-7 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 sm:left-auto sm:right-8 sm:translate-x-0 sm:gap-3 lg:right-25">
           <button
             type="button"
             onClick={previousSlide}
             aria-label="Previous background image"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/50 text-white transition-colors hover:bg-white hover:text-primary-dark"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/50 text-white transition-colors hover:bg-white hover:text-primary-dark sm:h-10 sm:w-10"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={16} className="sm:hidden" />
+            <ChevronLeft size={20} className="hidden sm:block" />
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {heroImages.map((image, index) => (
               <button
                 key={image._id || image.image || index}
@@ -199,9 +200,9 @@ export default function HeroSection() {
                 onClick={() => setActiveSlide(index)}
                 aria-label={`Go to slide ${index + 1}`}
                 aria-current={activeIndex === index ? "true" : undefined}
-                className={`h-2 rounded-full transition-all duration-300 ${activeIndex === index
-                    ? "w-7 bg-accent"
-                    : "w-2 bg-white/60 hover:bg-white"
+                className={`h-1.5 rounded-full transition-all duration-300 sm:h-2 ${activeIndex === index
+                    ? "w-5 bg-accent sm:w-7"
+                    : "w-1.5 bg-white/60 hover:bg-white sm:w-2"
                   }`}
               />
             ))}
@@ -211,9 +212,10 @@ export default function HeroSection() {
             type="button"
             onClick={nextSlide}
             aria-label="Next background image"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/50 text-white transition-colors hover:bg-white hover:text-primary-dark"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/50 text-white transition-colors hover:bg-white hover:text-primary-dark sm:h-10 sm:w-10"
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={16} className="sm:hidden" />
+            <ChevronRight size={20} className="hidden sm:block" />
           </button>
         </div>
       )}

@@ -199,6 +199,106 @@ img {
   color: var(--text-inverse);
 }
 
+/* Hero buttons */
+
+@media (max-width: 639px) {
+  .hero-btn,
+  .hero-btn-secondary {
+    font-size: 12px !important;
+    min-height: 40px;
+    padding-left: 8px;
+    padding-right: 8px;
+  
+    gap: 5px;
+  }
+}
+/* Why Choose Us - Automatic Feature Slider */
+.feature-slider {
+  width: 100%;
+  overflow: hidden;
+}
+
+.feature-slider-track {
+  display: flex;
+  width: max-content;
+  gap: 24px;
+  animation: feature-scroll 28s linear infinite;
+}
+
+.feature-slide {
+  flex: 0 0 calc(100vw - 2rem);
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .feature-slide {
+    flex-basis: calc((100vw - 3.5rem) / 2);
+  }
+}
+
+.feature-slider:hover .feature-slider-track {
+  animation-play-state: paused;
+}
+
+@keyframes feature-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature-slider-track {
+    animation: none;
+  }
+}
+
+/* Automatic Gallery Slider */
+.gallery-slider {
+  width: 100%;
+  overflow: hidden;
+}
+
+.gallery-slider-track {
+  display: flex;
+  width: max-content;
+  gap: 16px;
+  animation: gallery-scroll 35s linear infinite;
+}
+
+.gallery-slide {
+  flex: 0 0 calc(100vw - 2rem);
+  min-width: 0;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .gallery-slide {
+    flex-basis: calc((100vw - 3.5rem) / 2);
+  }
+}
+
+.gallery-slider:hover .gallery-slider-track {
+  animation-play-state: paused;
+}
+
+@keyframes gallery-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-slider-track {
+    animation: none;
+  }
+}
 /* ========================================
    ACCESSIBILITY
 ======================================== */
@@ -247,15 +347,6 @@ img {
     margin: 0;
   }
 
- .hero-btn {
-  font-size: 14px !important;
-}
-
-@media (max-width: 639px) {
-  .hero-btn {
-    font-size: 11px !important;
-  }
-}
   html,
   body {
     width: 80mm !important;
