@@ -39,11 +39,10 @@ export default function HeroSection() {
   const [activeSlide, setActiveSlide] = useState(0);
 
   const heroImages =
-    content.heroSlides?.length > 0
+    Array.isArray(content.heroSlides) && content.heroSlides.length > 0
       ? content.heroSlides
       : defaultContent.heroSlides;
 
-  // Keep the active slide within the available image range.
   const activeIndex = Math.min(
     activeSlide,
     Math.max(heroImages.length - 1, 0)
@@ -60,10 +59,13 @@ export default function HeroSection() {
           signal: controller.signal,
         });
 
+        if (!response.ok) {
+          throw new Error("Failed to fetch homepage content.");
+        }
+
         const data = await response.json();
 
         if (
-          response.ok &&
           data.success &&
           data.homePage &&
           !controller.signal.aborted
@@ -71,8 +73,14 @@ export default function HeroSection() {
           setContent({
             ...defaultContent,
             ...data.homePage,
-            primaryButtonLink: "/stays",
+            heroSlides:
+              Array.isArray(data.homePage.heroSlides) &&
+                data.homePage.heroSlides.length > 0
+                ? data.homePage.heroSlides
+                : defaultContent.heroSlides,
           });
+
+          setActiveSlide(0);
         }
       } catch (error) {
         if (!controller.signal.aborted) {

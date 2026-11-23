@@ -36,7 +36,7 @@ export default function HomePage() {
       <RestaurantSection />
       <WhyChooseUs />
       <GallerySection />
-      <BookingCTA />
+    
     </main>
   );
 }

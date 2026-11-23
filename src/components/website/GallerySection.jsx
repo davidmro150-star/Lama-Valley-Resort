@@ -5,19 +5,31 @@ import { ArrowUpRight } from "lucide-react";
 
 import connectDB from "@/lib/mongodb";
 import Gallery from "@/models/Gallery";
+import HomePage from "@/models/HomePage";
+
+export const dynamic = "force-dynamic";
 
 export default async function GallerySection() {
   let galleryImages = [];
+  let content = {};
 
   try {
     await connectDB();
 
-    const images = await Gallery.find({
-      isActive: true,
-    })
-      .sort({ order: 1, createdAt: -1 })
-      .limit(5)
-      .lean();
+    const [images, homePage] = await Promise.all([
+      Gallery.find({
+        isActive: true,
+      })
+        .sort({ order: 1, createdAt: -1 })
+        .limit(5)
+        .lean(),
+
+      HomePage.findOne()
+        .select("gallerySection")
+        .lean(),
+    ]);
+
+    content = homePage?.gallerySection || {};
 
     galleryImages = images.map((image, index) => ({
       id: image._id.toString(),
@@ -33,18 +45,19 @@ export default async function GallerySection() {
   return (
     <section className="section-padding bg-background">
       <div className="container">
-
         {/* Section Heading */}
         <div className="section-heading mb-14">
-          <p className="section-eyebrow">Our Gallery</p>
+          <p className="section-eyebrow">
+            {content.eyebrow || "Our Gallery"}
+          </p>
 
           <h2 className="section-title !text-[35px]">
-            Moments Worth Remembering
+            {content.title || "Moments Worth Remembering"}
           </h2>
 
           <p className="section-description">
-            Explore beautiful landscapes, relaxing surroundings
-            and memorable moments at Lama Valley.
+            {content.description ||
+              "Explore beautiful landscapes, relaxing surroundings and memorable moments at Lama Valley."}
           </p>
         </div>
 
@@ -54,9 +67,7 @@ export default async function GallerySection() {
             {galleryImages.map((image) => (
               <div
                 key={image.id}
-                className={`group relative overflow-hidden rounded-xl ${image.size === "large"
-                    ? "sm:row-span-2"
-                    : ""
+                className={`group relative overflow-hidden rounded-xl ${image.size === "large" ? "sm:row-span-2" : ""
                   }`}
               >
                 <Image
@@ -91,12 +102,14 @@ export default async function GallerySection() {
 
         {/* View Gallery Button */}
         <div className="mt-12 text-center">
-          <Link href="/gallery" className="btn btn-primary">
-            Explore Full Gallery
+          <Link
+            href={content.buttonLink || "/gallery"}
+            className="btn btn-primary"
+          >
+            {content.buttonText || "Explore Full Gallery"}
             <ArrowUpRight size={17} />
           </Link>
         </div>
-
       </div>
     </section>
   );

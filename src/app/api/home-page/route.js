@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import HomePage from "@/models/HomePage";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     await connectDB();
@@ -10,14 +12,15 @@ export async function GET() {
     let homePage = await HomePage.findOne().lean();
 
     if (!homePage) {
-      homePage = await HomePage.create({});
-      homePage = homePage.toObject();
+      const created = await HomePage.create({});
+      homePage = created.toObject();
     }
 
     return NextResponse.json(
       {
         success: true,
         homePage: {
+          // Hero section
           heroLocation: homePage.heroLocation,
           heroTitle: homePage.heroTitle,
           heroDescription: homePage.heroDescription,
@@ -26,11 +29,29 @@ export async function GET() {
           secondaryButtonText: homePage.secondaryButtonText,
           secondaryButtonLink: homePage.secondaryButtonLink,
           heroSlides: homePage.heroSlides,
+
+          // About section
+          aboutSection: homePage.aboutSection,
+
+          // Stays section
+          staysSection: homePage.staysSection,
+
+          // Restaurant section
+          diningSection: homePage.diningSection,
+
+          // Why Choose Us section
+          featuresSection: homePage.featuresSection,
+
+          // Gallery section
+          gallerySection: homePage.gallerySection,
+
+          // Booking CTA section
+          bookingCtaSection: homePage.bookingCtaSection,
         },
       },
       {
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control": "no-store, max-age=0",
         },
       }
     );
