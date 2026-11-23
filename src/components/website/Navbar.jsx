@@ -44,7 +44,7 @@ export default function Navbar({ logoUrl = "", logoAlt = "" }) {
         {/* Desktop Booking Button */}
         <Link
           href="/stays"
-          className="btn btn-primary hidden lg:inline-flex"
+          className=" btn-primary hidden   lg:inline-flex"
         >
           Book Your Stay
           <ArrowUpRight size={16} />

@@ -247,6 +247,15 @@ img {
     margin: 0;
   }
 
+ .hero-btn {
+  font-size: 14px !important;
+}
+
+@media (max-width: 639px) {
+  .hero-btn {
+    font-size: 11px !important;
+  }
+}
   html,
   body {
     width: 80mm !important;

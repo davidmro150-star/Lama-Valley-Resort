@@ -149,31 +149,33 @@ export default function HeroSection() {
             {content.heroLocation}
           </p>
 
-          <h1 className="mb-7 whitespace-pre-line font-display text-5xl leading-[1.12] text-white sm:text-6xl lg:text-7xl">
+          <h1 className="mb-7 whitespace-pre-line font-display text-4xl leading-[1.12] text-white sm:text-6xl lg:text-7xl">
             {content.heroTitle}
           </h1>
 
-          <p className="mb-10 max-w-xl text-base leading-8 text-white/85 sm:text-lg">
+          <p className="mb-10 max-w-xl text-xs leading-8 text-white/85 sm:text-lg">
             {content.heroDescription}
           </p>
 
-          <div className="flex flex-col gap-4 sm:flex-row">
+          <div className="flex flex-row gap-3 sm:gap-4">
             <Link
               href={content.primaryButtonLink || "/stays"}
-              className="btn inline-flex min-h-14 bg-accent px-7 text-primary-dark hover:bg-accent-light"
+              className="btn hero-btn inline-flex min-w-0 flex-1 justify-center bg-accent px-3 text-primary-dark hover:bg-accent-light sm:px-7"
             >
               {content.primaryButtonText}
-              <ArrowUpRight size={18} />
+              <ArrowUpRight size={16} />
             </Link>
 
             <Link
               href={content.secondaryButtonLink || "/about"}
-              className="btn inline-flex min-h-14 border border-white/70 bg-[#234b3b] px-7 !text-white transition-colors hover:bg-white hover:!text-primary-dark"
+              className="btn hero-btn inline-flex min-w-0 flex-1 justify-center border border-white/70 bg-[#234b3b] px-3 !text-white transition-colors hover:bg-white hover:!text-primary-dark sm:px-7"
             >
               {content.secondaryButtonText}
-              <ArrowRight size={18} />
+              <ArrowRight size={16} />
             </Link>
           </div>
+
+          
         </div>
       </div>
 
